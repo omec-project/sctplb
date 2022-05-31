@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2022 Open Networking Foundation <info@opennetworking.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+configuration:
+  info:
+    description: SctpLb initial local configuration
+    version: 1.0.0
+  logger:
+    sctpLogs: info
+    dispatcherLogs: info
+    clientdiscLogs: info
+  configuration:
+    ngapIpList:
+    - 0.0.0.0
+    serviceNames:
+    - "sctplb"
