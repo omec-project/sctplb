@@ -2,12 +2,14 @@ module github.com/omec-project/sctplb
 
 go 1.17
 
+replace github.com/omec-project/sctplb => ./
+
 require (
 	git.cs.nctu.edu.tw/calee/sctp v1.1.0
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
 	github.com/omec-project/ngap v1.1.0
 	github.com/sirupsen/logrus v1.8.1
-	google.golang.org/grpc v1.46.0
+	google.golang.org/grpc v1.48.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/yaml.v2 v2.4.0
 )

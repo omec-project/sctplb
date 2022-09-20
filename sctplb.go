@@ -5,10 +5,12 @@
 package main
 
 import (
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"time"
+
+	"github.com/omec-project/sctplb/logger"
+	"gopkg.in/yaml.v2"
 )
 
 //var msgChan chan datamodels.SctpLbMessage
@@ -28,10 +30,10 @@ type Info struct {
 }
 
 type Configuration struct {
-	ServiceName []string `yaml:"serviceNames,omitempty"`
-	NgapIpList  []string `yaml:"ngapIpList,omitempty"`
-	NgapPort    int `yaml:"ngappPort,omitempty"`
-	SctpGrpcPort    int `yaml:"sctpGrpcPort,omitempty"`
+	ServiceName  []string `yaml:"serviceNames,omitempty"`
+	NgapIpList   []string `yaml:"ngapIpList,omitempty"`
+	NgapPort     int      `yaml:"ngappPort,omitempty"`
+	SctpGrpcPort int      `yaml:"sctpGrpcPort,omitempty"`
 }
 
 const (
@@ -44,18 +46,18 @@ var SimappConfig Config
 
 func InitConfigFactory(f string) error {
 	if content, err := ioutil.ReadFile(f); err != nil {
-		CfgLog.Errorf("Readfile failed called ", err)
+		logger.CfgLog.Errorf("Readfile failed called ", err)
 		return err
 	} else {
 		SimappConfig = Config{}
 
 		if yamlErr := yaml.Unmarshal(content, &SimappConfig); yamlErr != nil {
-			CfgLog.Errorf("yaml parsing failed ", yamlErr)
+			logger.CfgLog.Errorf("yaml parsing failed ", yamlErr)
 			return yamlErr
 		}
 	}
 	if SimappConfig.Configuration == nil {
-		CfgLog.Errorf("Configuration Parsing Failed ", SimappConfig.Configuration)
+		logger.CfgLog.Errorf("Configuration Parsing Failed ", SimappConfig.Configuration)
 		return nil
 	}
 	return nil
@@ -66,9 +68,8 @@ func main() {
 
 	InitConfigFactory("./config/sctplb.yaml")
 
-
 	//Read messages from SCTP Sockets and push it on channel
-	log.Println("SCTP Port ", SimappConfig.Configuration.NgapPort," grpc port : ", SimappConfig.Configuration.SctpGrpcPort)
+	log.Println("SCTP Port ", SimappConfig.Configuration.NgapPort, " grpc port : ", SimappConfig.Configuration.SctpGrpcPort)
 	serviceRun(SimappConfig.Configuration.NgapIpList, SimappConfig.Configuration.NgapPort)
 
 	for _, name := range SimappConfig.Configuration.ServiceName {
@@ -78,5 +79,5 @@ func main() {
 	for {
 		time.Sleep(100 * time.Second)
 	}
-	CfgLog.Errorf("Testing log %+v", 1)
+	logger.CfgLog.Errorf("Testing log %+v", 1)
 }
