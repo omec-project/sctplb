@@ -121,7 +121,9 @@ func (b *backendNF) deleteBackendNF() {
 		if b1 == b {
 			backends[i] = backends[len(backends)-1]
 			backends = backends[:len(backends)-1]
+			mutex.Lock()
 			nfNum--
+			mutex.Unlock()
 			break
 		}
 	}
