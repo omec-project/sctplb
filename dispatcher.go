@@ -30,17 +30,21 @@ type backendNF struct {
 
 var (
 	backends []*backendNF
+	nfNum    int
 	next     int
 	mutex    sync.Mutex
 )
 
 // returns the backendNF using RoundRobin algorithm
 func RoundRobin() (nf *backendNF) {
-	if len(backends) <= 0 {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if nfNum <= 0 {
 		logger.DispatchLog.Errorln("There are no backend NFs running")
 		return nil
 	}
-	if next >= len(backends) {
+	if next >= nfNum {
 		next = 0
 	}
 
@@ -80,7 +84,10 @@ func dispatchAddServer(serviceName string) {
 				logger.DiscoveryLog.Infoln("New Server found IPv4: ", ipv4.String())
 				backend := &backendNF{}
 				backend.address = ipv4.String()
+				mutex.Lock()
 				backends = append(backends, backend)
+				nfNum++
+				mutex.Unlock()
 				go backend.connectToServer()
 			}
 		}
@@ -114,6 +121,9 @@ func (b *backendNF) deleteBackendNF() {
 		if b1 == b {
 			backends[i] = backends[len(backends)-1]
 			backends = backends[:len(backends)-1]
+			mutex.Lock()
+			nfNum--
+			mutex.Unlock()
 			break
 		}
 	}
