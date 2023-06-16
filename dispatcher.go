@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/omec-project/ngap"
+	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/sctplb/context"
 	"github.com/omec-project/sctplb/logger"
 	gClient "github.com/omec-project/sctplb/sdcoreAmfServer"
@@ -30,13 +32,13 @@ type backendNF struct {
 
 var (
 	backends []*backendNF
-	nfNum    int
-	next     int
+	nfNum    int64
+	next     int64
 	mutex    sync.Mutex
 )
 
 // returns the backendNF using RoundRobin algorithm
-func RoundRobin() (nf *backendNF) {
+func RoundRobin(amfId int64) (nf *backendNF) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
@@ -44,7 +46,9 @@ func RoundRobin() (nf *backendNF) {
 		logger.DispatchLog.Errorln("There are no backend NFs running")
 		return nil
 	}
-	if next >= nfNum {
+	if amfId != 0 {
+		next = amfId % nfNum
+	} else if next >= nfNum {
 		next = 0
 	}
 
@@ -121,9 +125,7 @@ func (b *backendNF) deleteBackendNF() {
 		if b1 == b {
 			backends[i] = backends[len(backends)-1]
 			backends = backends[:len(backends)-1]
-			mutex.Lock()
 			nfNum--
-			mutex.Unlock()
 			break
 		}
 	}
@@ -302,6 +304,47 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 	if ran == nil {
 		ran = context.Sctplb_Self().NewRan(conn)
 	}
+	pdu, err := ngap.Decoder(msg)
+	if err != nil {
+		ran.Log.Errorf("NGAP decode error : %+v", err)
+		return
+	}
+	var amfId int64 = 0
+	switch pdu.Present {
+	case ngapType.NGAPPDUPresentInitiatingMessage:
+		initiatingMessage := pdu.InitiatingMessage
+		if initiatingMessage == nil {
+			ran.Log.Errorln("Initiating Message is nil")
+			break
+		}
+		switch initiatingMessage.ProcedureCode.Value {
+		case ngapType.ProcedureCodeUplinkNASTransport:
+			uplinkNasTransport := initiatingMessage.Value.UplinkNASTransport
+			if uplinkNasTransport == nil {
+				ran.Log.Error("UplinkNasTransport is nil")
+				break
+			}
+			for i := 0; i < len(uplinkNasTransport.ProtocolIEs.List); i++ {
+				ie := uplinkNasTransport.ProtocolIEs.List[i]
+				switch ie.Id.Value {
+				case ngapType.ProtocolIEIDAMFUENGAPID:
+					var aMFUENGAPID *ngapType.AMFUENGAPID
+					aMFUENGAPID = ie.Value.AMFUENGAPID
+					ran.Log.Trace("Decode IE AmfUeNgapID")
+					if aMFUENGAPID == nil {
+						ran.Log.Error("AmfUeNgapID is nil")
+						break
+					}
+					amfId = aMFUENGAPID.Value
+					break
+				}
+				if amfId != 0 {
+					break
+				}
+			}
+		}
+	}
+
 	logger.SctpLog.Println("Message received from remoteAddr ", conn.RemoteAddr().String())
 	t := gClient.SctplbMessage{}
 	t.VerboseMsg = "Hello From gNB Message !"
@@ -321,8 +364,18 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 	}
 	var i int
 	for ; i < len(backends); i++ {
-		//Select the backend NF based on RoundRobin Algorithm
-		backend := RoundRobin()
+		// Select the backend NF based on RoundRobin Algorithm
+		// a. For initial message load balancing is Round Robin & for uplink transport messages
+		//    load balancing is based on hashing.
+		// b. Redirect support in AMF<-->SCTPLB is still required because under some corner cases
+		//    it is possible that message may go to wrong AMF
+		// c. If number of AMF instances are more then which means more redirect messages which means 2 times SCTP message decode
+		//    so it makes sense to add NGAP decoding support at SCTPLB itself.
+		//
+		// TBD : 1) Use DRSM to send request to correct AMF or
+		//          Use consistent hashing to send message to AMF which owns the hash index
+		//       2) NAS decoding to fetch TMSI and send message to one of the AMF using hashing or DRSM
+		backend := RoundRobin(amfId)
 		if backend.state == true {
 			if err := backend.stream.Send(&t); err != nil {
 				logger.SctpLog.Errorln("can not send: ", err)
