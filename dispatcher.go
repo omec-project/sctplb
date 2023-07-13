@@ -158,7 +158,7 @@ func (b *backendNF) readFromServer() {
 							t.Msg = response.Msg
 							t.GnbId = response.GnbId
 							b1.stream.Send(&t)
-							log.Printf("successfully forwarded msg to correct AMF")
+							//log.Printf("successfully forwarded msg to correct AMF")
 							found = true
 						}
 						break
@@ -227,8 +227,8 @@ func (b *backendNF) connectToServer() {
 			req.Msgtype = gClient.MsgType_INIT_MSG
 			req.SctplbId = os.Getenv("HOSTNAME")
 			candidate := value.(*context.Ran)
-			if candidate.RanId != nil {
-				req.GnbId = *candidate.RanId
+			if candidate.RanId != "" {
+				req.GnbId = candidate.RanId
 			} else {
 				log.Printf("ran connection %v is exist without GnbId, so not sending this ran details to NF",
 					candidate.GnbIp)
@@ -271,7 +271,7 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		return
 	} else {
 		peer = p.(*SctpConnections)
-		logger.SctpLog.Warnf("Handle SCTP Notification[addr: %+v], peer %v ", conn.RemoteAddr(), peer)
+		//logger.SctpLog.Warnf("Handle SCTP Notification[addr: %+v], peer %v ", conn.RemoteAddr(), peer)
 	}
 
 	ran, _ := context.Sctplb_Self().RanFindByConn(conn)
@@ -281,8 +281,8 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		t.VerboseMsg = "Bye From gNB Message !"
 		t.Msgtype = gClient.MsgType_GNB_DISC
 		t.SctplbId = os.Getenv("HOSTNAME")
-		if ran != nil && ran.RanId != nil {
-			t.GnbId = *ran.RanId
+		if ran != nil && ran.RanId != "" {
+			t.GnbId = ran.RanId
 		}
 		t.Msg = msg
 		if backends != nil && len(backends) > 0 {
@@ -298,6 +298,7 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		} else {
 			logger.SctpLog.Errorln("No AMF Connections")
 		}
+        ran.Log.Infof("Delete RAN Context[ID: %+v]", ran.RanID())
 		context.Sctplb_Self().DeleteRan(conn)
 		return
 	}
@@ -345,15 +346,15 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		}
 	}
 
-	logger.SctpLog.Println("Message received from remoteAddr ", conn.RemoteAddr().String())
+	//logger.SctpLog.Println("Message received from remoteAddr ", conn.RemoteAddr().String())
 	t := gClient.SctplbMessage{}
 	t.VerboseMsg = "Hello From gNB Message !"
 	t.Msgtype = gClient.MsgType_GNB_MSG
 	t.SctplbId = os.Getenv("HOSTNAME")
 	//send GnbId to backendNF if exist
 	//GnbIp to backend ig GnbId is not exist, mostly this is for NGSetup Message
-	if ran.RanId != nil {
-		t.GnbId = *ran.RanId
+	if ran.RanId != "" {
+		t.GnbId = ran.RanId
 	} else {
 		t.GnbIpAddr = conn.RemoteAddr().String()
 	}
