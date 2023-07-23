@@ -39,6 +39,7 @@ var (
 
 // returns the backendNF using RoundRobin algorithm
 func RoundRobin(amfId int64) (nf *backendNF) {
+	var index int64
 	mutex.Lock()
 	defer mutex.Unlock()
 
@@ -46,14 +47,16 @@ func RoundRobin(amfId int64) (nf *backendNF) {
 		logger.DispatchLog.Errorln("There are no backend NFs running")
 		return nil
 	}
-	if amfId != 0 {
-		next = amfId % nfNum
-	} else if next >= nfNum {
+	if next >= nfNum {
 		next = 0
 	}
-
-	nf = backends[next]
-	next++
+	if amfId != 0 {
+		index = amfId % nfNum
+		nf = backends[index]
+	} else {
+		nf = backends[next]
+		next++
+	}
 	return nf
 }
 
@@ -298,7 +301,7 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		} else {
 			logger.SctpLog.Errorln("No AMF Connections")
 		}
-        ran.Log.Infof("Delete RAN Context[ID: %+v]", ran.RanID())
+		ran.Log.Infof("Delete RAN Context[ID: %+v]", ran.RanID())
 		context.Sctplb_Self().DeleteRan(conn)
 		return
 	}
