@@ -18,6 +18,7 @@ import (
 	"github.com/omec-project/sctplb/context"
 	"github.com/omec-project/sctplb/logger"
 	gClient "github.com/omec-project/sctplb/sdcoreAmfServer"
+	"github.com/omec-project/util/drsm"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 )
@@ -31,11 +32,25 @@ type backendNF struct {
 }
 
 var (
-	backends []*backendNF
-	nfNum    int64
-	next     int64
-	mutex    sync.Mutex
+	backends      []*backendNF
+	nfNum         int64
+	next          int64
+	mutex         sync.Mutex
+	drsmInitDone  bool = false
+	Drsm          drsm.DrsmInterface
+	redirectCount int64
 )
+
+func InitDrsm() (drsm.DrsmInterface, error) {
+	podname := os.Getenv("HOSTNAME")
+	podip := os.Getenv("POD_IP")
+	podId := drsm.PodId{PodName: podname, PodIp: podip}
+	dbUrl := "mongodb://mongodb-arbiter-headless"
+	opt := &drsm.Options{ResIdSize: 24, Mode: drsm.ResourceDemux}
+	db := drsm.DbInfo{Url: dbUrl, Name: "sdcore_amf"}
+
+	return drsm.InitDRSM("amfid", podId, db, opt)
+}
 
 // returns the backendNF using RoundRobin algorithm
 func RoundRobin(amfId int64) (nf *backendNF) {
@@ -50,10 +65,26 @@ func RoundRobin(amfId int64) (nf *backendNF) {
 	if next >= nfNum {
 		next = 0
 	}
-	if amfId != 0 {
-		index = amfId % nfNum
-		nf = backends[index]
+	if amfId != 0 && drsmInitDone {
+		var id *drsm.PodId
+		logger.DispatchLog.Errorln("find amfid owner ", amfId)
+		id, _ = Drsm.FindOwnerInt32ID(int32(amfId))
+		if id != nil {
+			logger.DispatchLog.Errorln("1 found owner ", id)
+			for _, b1 := range backends {
+				if b1.state == true && b1.address == id.PodIp {
+					nf = b1
+					logger.DispatchLog.Errorln("2 found owner ", b1.address)
+					break
+				}
+			}
+		} else {
+			logger.DispatchLog.Errorln("did not find owner for amfid ", amfId)
+			index = amfId % nfNum
+			nf = backends[index]
+		}
 	} else {
+		logger.DispatchLog.Errorln("use default round robin for amdId ", amfId)
 		nf = backends[next]
 		next++
 	}
@@ -66,6 +97,11 @@ func dispatchAddServer(serviceName string) {
 	// create server outstanding message queue
 	// connect to server
 	// there can be more than 1 message outstanding toards same server
+
+	if drsmInitDone == false {
+		Drsm, _ = InitDrsm()
+		drsmInitDone = true
+	}
 
 	for {
 		logger.DiscoveryLog.Traceln("Discover Service ", serviceName)
@@ -148,9 +184,12 @@ func (b *backendNF) readFromServer() {
 			if response.Msgtype == gClient.MsgType_INIT_MSG {
 				log.Printf("Init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
 			} else if response.Msgtype == gClient.MsgType_REDIRECT_MSG {
+				log.Printf("Redirect message count ", redirectCount)
+				redirectCount++
 				var found bool
 				for _, b1 := range backends {
 					if b1.address == response.RedirectId {
+						log.Printf("Received REDIRECT message ")
 						if b1.state == false {
 							log.Printf("backend state is not in READY state, so not forwarding redirected Msg")
 						} else {
@@ -363,7 +402,7 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 	}
 	t.Msg = msg
 	if len(backends) == 0 {
-		fmt.Println("NO backend available")
+		fmt.Println("No backend available")
 		return
 	}
 	var i int
