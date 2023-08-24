@@ -16,6 +16,7 @@ var (
 	CfgLog       *logrus.Entry
 	AppLog       *logrus.Entry
 	SctpLog      *logrus.Entry
+	GrpcLog      *logrus.Entry
 	DispatchLog  *logrus.Entry
 	DiscoveryLog *logrus.Entry
 	RanLog       *logrus.Entry
@@ -40,6 +41,7 @@ func init() {
 	CfgLog = logh.WithFields(logrus.Fields{"component": "SCTP_LB", "category": "CFG"})
 	AppLog = logh.WithFields(logrus.Fields{"component": "SCTP_LB", "category": "GRPC"})
 	SctpLog = logh.WithFields(logrus.Fields{"component": "SCTP"})
+	GrpcLog = logh.WithFields(logrus.Fields{"component": "Grpc"})
 	DispatchLog = logh.WithFields(logrus.Fields{"component": "DISPATCH"})
 	DiscoveryLog = logh.WithFields(logrus.Fields{"component": "discovery"})
 	RanLog = logh.WithFields(logrus.Fields{"component": "RAN"})
