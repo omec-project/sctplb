@@ -9,9 +9,10 @@ import (
 	"github.com/omec-project/sctplb/logger"
 	gClient "github.com/omec-project/sctplb/sdcoreAmfServer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 )
 
-type backendNF struct {
+type BackendNF struct {
 	address string
 	conn    *grpc.ClientConn
 	gc      gClient.NgapServiceClient
@@ -19,7 +20,7 @@ type backendNF struct {
 	stream  gClient.NgapService_HandleMessageClient
 }
 
-func (b *backendNF) connectToServer(port int) {
+func (b *BackendNF) connectToServer(port int) {
 	target := fmt.Sprintf("%s:%d", b.address, port)
 
 	fmt.Println("Connecting to target ", target)
@@ -80,7 +81,7 @@ func (b *backendNF) connectToServer(port int) {
 	}
 }
 
-func (b *backendNF) readFromServer() {
+func (b *BackendNF) readFromServer() {
 	for {
 		response, err := b.stream.Recv()
 		if err != nil {
@@ -92,7 +93,9 @@ func (b *backendNF) readFromServer() {
 				logger.GrpcLog.Printf("Init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
 			} else if response.Msgtype == gClient.MsgType_REDIRECT_MSG {
 				var found bool
-				for _, b1 := range backends {
+				ctx := context.Sctplb_Self()
+				for _, instance := range ctx.Backends {
+					b1 := instance.(*BackendNF)
 					if b1.address == response.RedirectId {
 						if b1.state == false {
 							logger.GrpcLog.Printf("backend state is not in READY state, so not forwarding redirected Msg")
@@ -137,4 +140,48 @@ func (b *backendNF) readFromServer() {
 			}
 		}
 	}
+}
+
+func (b *BackendNF) connectionOnState() {
+
+	go func() {
+
+		// continue checking for state change
+		// until one of break states is found
+		for {
+			change := b.conn.WaitForStateChange(ctxt.Background(), b.conn.GetState())
+			if change && b.conn.GetState() == connectivity.Idle {
+				b.deleteBackendNF()
+				return
+			}
+
+		}
+	}()
+
+}
+
+func (b *BackendNF) Send(msg []byte, end bool, ran *context.Ran) error {
+	t := gClient.SctplbMessage{}
+	if end {
+		t.VerboseMsg = "Bye From gNB Message !"
+		t.Msgtype = gClient.MsgType_GNB_DISC
+		t.SctplbId = os.Getenv("HOSTNAME")
+		if ran != nil && ran.RanId != nil {
+			t.GnbId = *ran.RanId
+		}
+		t.Msg = msg
+	} else {
+		t.VerboseMsg = "Hello From gNB Message !"
+		t.Msgtype = gClient.MsgType_GNB_MSG
+		t.SctplbId = os.Getenv("HOSTNAME")
+		//send GnbId to backendNF if exist
+		//GnbIp to backend ig GnbId is not exist, mostly this is for NGSetup Message
+		if ran.RanId != nil {
+			t.GnbId = *ran.RanId
+		} else {
+			t.GnbIpAddr = ran.Conn.RemoteAddr().String()
+		}
+		t.Msg = msg
+	}
+	return b.stream.Send(&t)
 }

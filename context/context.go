@@ -19,8 +19,15 @@ import (
 var sctplbContext = SctplbContext{}
 
 type SctplbContext struct {
-	RanPool sync.Map // map[net.Conn]*Ran
+	RanPool  sync.Map // map[net.Conn]*Ran
+	Backends []interface{}
 }
+
+var (
+	nfNum int
+	next  int
+	mutex sync.Mutex
+)
 
 type Ran struct {
 	RanId *string
@@ -98,4 +105,42 @@ func (context *SctplbContext) DeleteRan(conn net.Conn) {
 // Create new AMF context
 func Sctplb_Self() *SctplbContext {
 	return &sctplbContext
+}
+
+func (context *SctplbContext) DeleteNF(target interface{}) {
+	for i, instance := range sctplbContext.Backends {
+		if instance == target {
+			sctplbContext.Backends[i] = sctplbContext.Backends[len(sctplbContext.Backends)-1]
+			sctplbContext.Backends = sctplbContext.Backends[:len(sctplbContext.Backends)-1]
+			nfNum--
+			break
+		}
+	}
+}
+
+func (context *SctplbContext) Iterate(handler func(k int, v interface{})) {
+	mutex.Lock()
+	for k, v := range context.Backends {
+		handler(k, v)
+	}
+	mutex.Unlock()
+}
+
+func (context *SctplbContext) AddNF(target interface{}) {
+	mutex.Lock()
+	context.Backends = append(context.Backends, target)
+	nfNum++
+	mutex.Unlock()
+}
+
+func (context *SctplbContext) NFLength() int {
+	return nfNum
+}
+
+func (context *SctplbContext) Lock() {
+	mutex.Lock()
+}
+
+func (context *SctplbContext) Unlock() {
+	mutex.Unlock()
 }

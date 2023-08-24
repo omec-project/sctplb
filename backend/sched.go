@@ -5,41 +5,34 @@
 package backend
 
 import (
-	ctxt "context"
 	"fmt"
 	"net"
-	"os"
-	"sync"
 	"time"
 
 	"github.com/omec-project/sctplb/config"
 	"github.com/omec-project/sctplb/context"
 	"github.com/omec-project/sctplb/logger"
-	gClient "github.com/omec-project/sctplb/sdcoreAmfServer"
-	"google.golang.org/grpc/connectivity"
 )
 
 var (
-	backends []*backendNF
-	nfNum    int
-	next     int
-	mutex    sync.Mutex
+	next int
 )
 
 // returns the backendNF using RoundRobin algorithm
-func RoundRobin() (nf *backendNF) {
-	mutex.Lock()
-	defer mutex.Unlock()
+func RoundRobin() (nf *BackendNF) {
+	ctx := context.Sctplb_Self()
+	len := ctx.NFLength()
 
-	if nfNum <= 0 {
+	if len <= 0 {
 		logger.DispatchLog.Errorln("There are no backend NFs running")
 		return nil
 	}
-	if next >= nfNum {
+	if next >= len {
 		next = 0
 	}
 
-	nf = backends[next]
+	instance := ctx.Backends[next]
+	nf = instance.(*BackendNF)
 	next++
 	return nf
 }
@@ -54,6 +47,7 @@ func (b BackendSvc) Run() {
 	// create server outstanding message queue
 	// connect to server
 	// there can be more than 1 message outstanding toards same server
+	ctx := context.Sctplb_Self()
 	svcList := b.Cfg.Configuration.ServiceName
 	for _, name := range svcList {
 		for {
@@ -68,7 +62,8 @@ func (b BackendSvc) Run() {
 				logger.DiscoveryLog.Traceln("Discover Service ", name, ", ip ", ip)
 				found := false
 				if ipv4 := ip.To4(); ipv4 != nil {
-					for _, b := range backends {
+					for _, instance := range ctx.Backends {
+						b := instance.(*BackendNF)
 						if b.address == ipv4.String() {
 							found = true
 							break
@@ -78,12 +73,9 @@ func (b BackendSvc) Run() {
 						continue
 					}
 					logger.DiscoveryLog.Infoln("New Server found IPv4: ", ipv4.String())
-					backend := &backendNF{}
+					backend := &BackendNF{}
 					backend.address = ipv4.String()
-					mutex.Lock()
-					backends = append(backends, backend)
-					nfNum++
-					mutex.Unlock()
+					ctx.AddNF(backend)
 					go backend.connectToServer(b.Cfg.Configuration.SctpGrpcPort)
 				}
 			}
@@ -92,39 +84,12 @@ func (b BackendSvc) Run() {
 	}
 }
 
-func (b *backendNF) connectionOnState() {
-
-	go func() {
-
-		// continue checking for state change
-		// until one of break states is found
-		for {
-			change := b.conn.WaitForStateChange(ctxt.Background(), b.conn.GetState())
-			if change && b.conn.GetState() == connectivity.Idle {
-				b.deleteBackendNF()
-				return
-			}
-
-		}
-	}()
-
-}
-
-func (b *backendNF) deleteBackendNF() {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	for i, b1 := range backends {
-		if b1 == b {
-			backends[i] = backends[len(backends)-1]
-			backends = backends[:len(backends)-1]
-			mutex.Lock()
-			nfNum--
-			mutex.Unlock()
-			break
-		}
-	}
-	for _, b1 := range backends {
+func (b *BackendNF) deleteBackendNF() {
+	ctx := context.Sctplb_Self()
+	ctx.Lock()
+	defer ctx.Unlock()
+	ctx.DeleteNF(b)
+	for _, b1 := range ctx.Backends {
 		fmt.Printf("Available backend %v \n", b1)
 	}
 }
@@ -151,24 +116,19 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		peer = p.(*SctpConnections)
 		logger.SctpLog.Warnf("Handle SCTP Notification[addr: %+v], peer %v ", conn.RemoteAddr(), peer)
 	}
-
-	ran, _ := context.Sctplb_Self().RanFindByConn(conn)
+	ctx := context.Sctplb_Self()
+	ctx.Lock()
+	defer ctx.Unlock()
+	ran, _ := ctx.RanFindByConn(conn)
 	if len(msg) == 0 {
 		logger.SctpLog.Infof("send Gnb connection [%v] close message to all AMF Instances", peer)
-		t := gClient.SctplbMessage{}
-		t.VerboseMsg = "Bye From gNB Message !"
-		t.Msgtype = gClient.MsgType_GNB_DISC
-		t.SctplbId = os.Getenv("HOSTNAME")
-		if ran != nil && ran.RanId != nil {
-			t.GnbId = *ran.RanId
-		}
-		t.Msg = msg
-		if backends != nil && len(backends) > 0 {
+		if ctx.Backends != nil && ctx.NFLength() > 0 {
 			var i int
-			for ; i < len(backends); i++ {
-				backend := backends[i]
+			for ; i < ctx.NFLength(); i++ {
+				instance := ctx.Backends[i]
+				backend := instance.(*BackendNF)
 				if backend.state == true {
-					if err := backend.stream.Send(&t); err != nil {
+					if err := backend.Send(msg, true, ran); err != nil {
 						logger.SctpLog.Errorln("can not send ", err)
 					}
 				}
@@ -183,28 +143,16 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		ran = context.Sctplb_Self().NewRan(conn)
 	}
 	logger.SctpLog.Println("Message received from remoteAddr ", conn.RemoteAddr().String())
-	t := gClient.SctplbMessage{}
-	t.VerboseMsg = "Hello From gNB Message !"
-	t.Msgtype = gClient.MsgType_GNB_MSG
-	t.SctplbId = os.Getenv("HOSTNAME")
-	//send GnbId to backendNF if exist
-	//GnbIp to backend ig GnbId is not exist, mostly this is for NGSetup Message
-	if ran.RanId != nil {
-		t.GnbId = *ran.RanId
-	} else {
-		t.GnbIpAddr = conn.RemoteAddr().String()
-	}
-	t.Msg = msg
-	if len(backends) == 0 {
+	if ctx.NFLength() == 0 {
 		fmt.Println("NO backend available")
 		return
 	}
 	var i int
-	for ; i < len(backends); i++ {
-		//Select the backend NF based on RoundRobin Algorithm
+	for ; i < ctx.NFLength(); i++ {
+		// Select the backend NF based on RoundRobin Algorithm
 		backend := RoundRobin()
 		if backend.state == true {
-			if err := backend.stream.Send(&t); err != nil {
+			if err := backend.Send(msg, false, ran); err != nil {
 				logger.SctpLog.Errorln("can not send: ", err)
 			}
 			break
