@@ -9,7 +9,7 @@ import (
 
 func initBackendNF() {
 	ctx := context.Sctplb_Self()
-	nfList := []*BackendNF{
+	nfList := []*GrpcServer{
 		{
 			address: "127.0.0.1",
 		},
@@ -37,31 +37,31 @@ func Test_RoundRobin(t *testing.T) {
 
 	tests := []struct {
 		name string
-		want *BackendNF
+		want *GrpcServer
 	}{
 		{
 			name: "Get BackendNF - 1",
-			want: ctx.Backends[0].(*BackendNF),
+			want: ctx.Backends[0].(*GrpcServer),
 		},
 		{
 			name: "Get BackendNF - 2",
-			want: ctx.Backends[1].(*BackendNF),
+			want: ctx.Backends[1].(*GrpcServer),
 		},
 		{
 			name: "Get BackendNF - 3",
-			want: ctx.Backends[2].(*BackendNF),
+			want: ctx.Backends[2].(*GrpcServer),
 		},
 		{
 			name: "Get BackendNF - 4",
-			want: ctx.Backends[3].(*BackendNF),
+			want: ctx.Backends[3].(*GrpcServer),
 		},
 		{
 			name: "Get BackendNF - 5",
-			want: ctx.Backends[4].(*BackendNF),
+			want: ctx.Backends[4].(*GrpcServer),
 		},
 		{
 			name: "Get BackendNF - 6",
-			want: ctx.Backends[0].(*BackendNF),
+			want: ctx.Backends[0].(*GrpcServer),
 		},
 	}
 
@@ -69,7 +69,7 @@ func Test_RoundRobin(t *testing.T) {
 		t.Run(
 			tt.name, func(t *testing.T) {
 				instance := RoundRobin()
-				require.Equal(t, instance.(*BackendNF), tt.want)
+				require.Equal(t, instance.(*GrpcServer), tt.want)
 			},
 		)
 	}

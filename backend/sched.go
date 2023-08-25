@@ -57,7 +57,7 @@ func (b BackendSvc) Run() {
 				found := false
 				if ipv4 := ip.To4(); ipv4 != nil {
 					for _, instance := range ctx.Backends {
-						b := instance.(*BackendNF)
+						b := instance.(*GrpcServer)
 						if b.address == ipv4.String() {
 							found = true
 							break
@@ -67,7 +67,7 @@ func (b BackendSvc) Run() {
 						continue
 					}
 					logger.DiscoveryLog.Infoln("New Server found IPv4: ", ipv4.String())
-					backend := &BackendNF{}
+					backend := &GrpcServer{}
 					backend.address = ipv4.String()
 					ctx.Lock()
 					ctx.AddNF(backend)
@@ -117,7 +117,7 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 			var i int
 			for ; i < ctx.NFLength(); i++ {
 				backend := ctx.Backends[i]
-				// backend := instance.(*BackendNF)
+				// backend := instance.(*GrpcServer)
 				if backend.State() == true {
 					if err := backend.Send(msg, true, ran); err != nil {
 						logger.SctpLog.Errorln("can not send ", err)
@@ -142,7 +142,7 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 	for ; i < ctx.NFLength(); i++ {
 		// Select the backend NF based on RoundRobin Algorithm
 		instance := RoundRobin()
-		backend := instance.(*BackendNF)
+		backend := instance.(*GrpcServer)
 		if backend.state == true {
 			if err := backend.Send(msg, false, ran); err != nil {
 				logger.SctpLog.Errorln("can not send: ", err)

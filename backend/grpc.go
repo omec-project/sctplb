@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/connectivity"
 )
 
-func (b *BackendNF) ConnectToServer(port int) {
+func (b *GrpcServer) ConnectToServer(port int) {
 	target := fmt.Sprintf("%s:%d", b.address, port)
 
 	fmt.Println("Connecting to target ", target)
@@ -73,7 +73,7 @@ func (b *BackendNF) ConnectToServer(port int) {
 	}
 }
 
-func (b *BackendNF) readFromServer() {
+func (b *GrpcServer) readFromServer() {
 	for {
 		response, err := b.stream.Recv()
 		if err != nil {
@@ -87,7 +87,7 @@ func (b *BackendNF) readFromServer() {
 				var found bool
 				ctx := context.Sctplb_Self()
 				for _, instance := range ctx.Backends {
-					b1 := instance.(*BackendNF)
+					b1 := instance.(*GrpcServer)
 					if b1.address == response.RedirectId {
 						if b1.state == false {
 							logger.GrpcLog.Printf("backend state is not in READY state, so not forwarding redirected Msg")
@@ -134,7 +134,7 @@ func (b *BackendNF) readFromServer() {
 	}
 }
 
-func (b *BackendNF) connectionOnState() {
+func (b *GrpcServer) connectionOnState() {
 
 	go func() {
 
@@ -152,7 +152,7 @@ func (b *BackendNF) connectionOnState() {
 
 }
 
-func (b *BackendNF) Send(msg []byte, end bool, ran *context.Ran) error {
+func (b *GrpcServer) Send(msg []byte, end bool, ran *context.Ran) error {
 	t := gClient.SctplbMessage{}
 	if end {
 		t.VerboseMsg = "Bye From gNB Message !"
@@ -178,6 +178,6 @@ func (b *BackendNF) Send(msg []byte, end bool, ran *context.Ran) error {
 	return b.stream.Send(&t)
 }
 
-func (b *BackendNF) State() bool {
+func (b *GrpcServer) State() bool {
 	return b.state
 }

@@ -18,9 +18,9 @@ type BackendSvc struct {
 	Cfg config.Config
 }
 
-var _ context.NF = &BackendNF{}
+var _ context.NF = &GrpcServer{}
 
-type BackendNF struct {
+type GrpcServer struct {
 	address string
 	conn    *grpc.ClientConn
 	gc      gClient.NgapServiceClient
