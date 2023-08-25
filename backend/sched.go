@@ -19,7 +19,7 @@ var (
 )
 
 // returns the backendNF using RoundRobin algorithm
-func RoundRobin() (nf *BackendNF) {
+func RoundRobin() interface{} {
 	ctx := context.Sctplb_Self()
 	len := ctx.NFLength()
 
@@ -32,9 +32,8 @@ func RoundRobin() (nf *BackendNF) {
 	}
 
 	instance := ctx.Backends[next]
-	nf = instance.(*BackendNF)
 	next++
-	return nf
+	return instance
 }
 
 type BackendSvc struct {
@@ -152,7 +151,8 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 	var i int
 	for ; i < ctx.NFLength(); i++ {
 		// Select the backend NF based on RoundRobin Algorithm
-		backend := RoundRobin()
+		instance := RoundRobin()
+		backend := instance.(*BackendNF)
 		if backend.state == true {
 			if err := backend.Send(msg, false, ran); err != nil {
 				logger.SctpLog.Errorln("can not send: ", err)

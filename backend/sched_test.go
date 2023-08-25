@@ -69,7 +69,7 @@ func Test_RoundRobin(t *testing.T) {
 		t.Run(
 			tt.name, func(t *testing.T) {
 				instance := RoundRobin()
-				require.Equal(t, instance, tt.want)
+				require.Equal(t, instance.(*BackendNF), tt.want)
 			},
 		)
 	}
