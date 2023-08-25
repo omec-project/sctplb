@@ -80,7 +80,7 @@ func (b BackendSvc) Run() {
 	}
 }
 
-func deleteBackendNF(b interface{}) {
+func deleteBackendNF(b context.NF) {
 	ctx := context.Sctplb_Self()
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -116,9 +116,9 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		if ctx.Backends != nil && ctx.NFLength() > 0 {
 			var i int
 			for ; i < ctx.NFLength(); i++ {
-				instance := ctx.Backends[i]
-				backend := instance.(*BackendNF)
-				if backend.state == true {
+				backend := ctx.Backends[i]
+				// backend := instance.(*BackendNF)
+				if backend.State() == true {
 					if err := backend.Send(msg, true, ran); err != nil {
 						logger.SctpLog.Errorln("can not send ", err)
 					}

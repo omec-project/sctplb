@@ -177,3 +177,7 @@ func (b *BackendNF) Send(msg []byte, end bool, ran *context.Ran) error {
 	}
 	return b.stream.Send(&t)
 }
+
+func (b *BackendNF) State() bool {
+	return b.state
+}

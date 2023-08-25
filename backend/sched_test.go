@@ -81,7 +81,7 @@ func Test_Iterate(t *testing.T) {
 
 	tests := []struct {
 		name string
-		want []interface{}
+		want []context.NF
 	}{
 		{
 			name: "Test Iterate",
@@ -93,7 +93,7 @@ func Test_Iterate(t *testing.T) {
 		t.Run(
 			tt.name, func(t *testing.T) {
 				var count int
-				ctx.Iterate(func(k int, v interface{}) {
+				ctx.Iterate(func(k int, v context.NF) {
 					require.Equal(t, tt.want[k], v)
 					count++
 				})

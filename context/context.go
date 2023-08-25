@@ -20,7 +20,7 @@ var sctplbContext = SctplbContext{}
 
 type SctplbContext struct {
 	RanPool  sync.Map // map[net.Conn]*Ran
-	Backends []interface{}
+	Backends []NF
 }
 
 var (
@@ -107,7 +107,13 @@ func Sctplb_Self() *SctplbContext {
 	return &sctplbContext
 }
 
-func (context *SctplbContext) DeleteNF(target interface{}) {
+type NF interface {
+	ConnectToServer(int)
+	Send([]byte, bool, *Ran) error
+	State() bool
+}
+
+func (context *SctplbContext) DeleteNF(target NF) {
 	for i, instance := range sctplbContext.Backends {
 		if instance == target {
 			sctplbContext.Backends[i] = sctplbContext.Backends[len(sctplbContext.Backends)-1]
@@ -118,13 +124,13 @@ func (context *SctplbContext) DeleteNF(target interface{}) {
 	}
 }
 
-func (context *SctplbContext) Iterate(handler func(k int, v interface{})) {
+func (context *SctplbContext) Iterate(handler func(k int, v NF)) {
 	for k, v := range context.Backends {
 		handler(k, v)
 	}
 }
 
-func (context *SctplbContext) AddNF(target interface{}) {
+func (context *SctplbContext) AddNF(target NF) {
 	context.Backends = append(context.Backends, target)
 	nfNum++
 }

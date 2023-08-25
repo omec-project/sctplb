@@ -4,6 +4,7 @@ import (
 	"net"
 
 	"github.com/omec-project/sctplb/config"
+	"github.com/omec-project/sctplb/context"
 	gClient "github.com/omec-project/sctplb/sdcoreAmfServer"
 	"google.golang.org/grpc"
 )
@@ -16,6 +17,8 @@ type SctpConnections struct {
 type BackendSvc struct {
 	Cfg config.Config
 }
+
+var _ context.NF = &BackendNF{}
 
 type BackendNF struct {
 	address string
