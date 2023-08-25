@@ -50,7 +50,7 @@ func (ran *Ran) SetRanId(gnbId string) {
 
 func (ran *Ran) RanID() string {
 	if ran.RanId != nil {
-		return fmt.Sprintf("<Mcc:Mnc:GNbID %s>", ran.RanId)
+		return fmt.Sprintf("<Mcc:Mnc:GNbID %s>", *ran.RanId)
 	}
 	return ""
 }
@@ -119,18 +119,14 @@ func (context *SctplbContext) DeleteNF(target interface{}) {
 }
 
 func (context *SctplbContext) Iterate(handler func(k int, v interface{})) {
-	mutex.Lock()
 	for k, v := range context.Backends {
 		handler(k, v)
 	}
-	mutex.Unlock()
 }
 
 func (context *SctplbContext) AddNF(target interface{}) {
-	mutex.Lock()
 	context.Backends = append(context.Backends, target)
 	nfNum++
-	mutex.Unlock()
 }
 
 func (context *SctplbContext) NFLength() int {

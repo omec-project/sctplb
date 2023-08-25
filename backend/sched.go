@@ -75,7 +75,9 @@ func (b BackendSvc) Run() {
 					logger.DiscoveryLog.Infoln("New Server found IPv4: ", ipv4.String())
 					backend := &BackendNF{}
 					backend.address = ipv4.String()
+					ctx.Lock()
 					ctx.AddNF(backend)
+					ctx.Unlock()
 					go backend.connectToServer(b.Cfg.Configuration.SctpGrpcPort)
 				}
 			}
