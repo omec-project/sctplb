@@ -22,23 +22,28 @@ type Info struct {
 	Description string `yaml:"description,omitempty"`
 }
 
+type Service struct {
+	Uri  string `yaml:"uri,omitempty"`
+	Type string `yaml:"type,omitempty" valid:"required,in(grpc)"`
+}
+
 type Configuration struct {
-	ServiceName  []string `yaml:"serviceNames,omitempty"`
-	NgapIpList   []string `yaml:"ngapIpList,omitempty"`
-	NgapPort     int      `yaml:"ngappPort,omitempty"`
-	SctpGrpcPort int      `yaml:"sctpGrpcPort,omitempty"`
+	Services     []Service `yaml:"services,omitempty"`
+	NgapIpList   []string  `yaml:"ngapIpList,omitempty"`
+	NgapPort     int       `yaml:"ngappPort,omitempty"`
+	SctpGrpcPort int       `yaml:"sctpGrpcPort,omitempty"`
 }
 
 func InitConfigFactory(f string) (Config, error) {
 	var SimappConfig Config
 	if content, err := ioutil.ReadFile(f); err != nil {
-		logger.CfgLog.Errorf("Readfile failed called ", err)
+		logger.CfgLog.Errorf("Readfile failed called %v", err)
 		return SimappConfig, err
 	} else {
 		SimappConfig = Config{}
 
 		if yamlErr := yaml.Unmarshal(content, &SimappConfig); yamlErr != nil {
-			logger.CfgLog.Errorf("yaml parsing failed ", yamlErr)
+			logger.CfgLog.Errorf("yaml parsing failed %v", yamlErr)
 			return SimappConfig, yamlErr
 		}
 	}

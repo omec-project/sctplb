@@ -42,18 +42,18 @@ func (b BackendSvc) Run() {
 	// connect to server
 	// there can be more than 1 message outstanding toards same server
 	ctx := context.Sctplb_Self()
-	svcList := b.Cfg.Configuration.ServiceName
-	for _, name := range svcList {
+	svcList := b.Cfg.Configuration.Services
+	for _, svc := range svcList {
 		for {
-			logger.DiscoveryLog.Traceln("Discover Service ", name)
-			ips, err := net.LookupIP(name)
+			logger.DiscoveryLog.Traceln("Discover Service ", svc.Uri)
+			ips, err := net.LookupIP(svc.Uri)
 			if err != nil {
-				logger.DiscoveryLog.Errorln("Discover Service ", name, " Error ", err)
+				logger.DiscoveryLog.Errorln("Discover Service ", svc.Uri, " Error ", err)
 				time.Sleep(2 * time.Second)
 				continue
 			}
 			for _, ip := range ips {
-				logger.DiscoveryLog.Traceln("Discover Service ", name, ", ip ", ip)
+				logger.DiscoveryLog.Traceln("Discover Service ", svc.Uri, ", ip ", ip)
 				found := false
 				if ipv4 := ip.To4(); ipv4 != nil {
 					for _, instance := range ctx.Backends {
