@@ -14,10 +14,10 @@ func Test_InitConfigFactory(t *testing.T) {
 		},
 		Logger: &Logger{},
 		Configuration: &Configuration{
+			Type: "grpc",
 			Services: []Service{
 				{
-					Uri:  "sctplb",
-					Type: "grpc",
+					Uri: "sctplb",
 				},
 			},
 			NgapIpList:   []string{"0.0.0.0"},

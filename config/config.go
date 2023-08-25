@@ -23,11 +23,11 @@ type Info struct {
 }
 
 type Service struct {
-	Uri  string `yaml:"uri,omitempty"`
-	Type string `yaml:"type,omitempty" valid:"required,in(grpc)"`
+	Uri string `yaml:"uri,omitempty"`
 }
 
 type Configuration struct {
+	Type         string    `yaml:"type,omitempty" valid:"required,in(grpc)"`
 	Services     []Service `yaml:"services,omitempty"`
 	NgapIpList   []string  `yaml:"ngapIpList,omitempty"`
 	NgapPort     int       `yaml:"ngappPort,omitempty"`

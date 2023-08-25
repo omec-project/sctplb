@@ -67,8 +67,16 @@ func (b BackendSvc) Run() {
 						continue
 					}
 					logger.DiscoveryLog.Infoln("New Server found IPv4: ", ipv4.String())
-					backend := &GrpcServer{}
-					backend.address = ipv4.String()
+					var backend context.NF
+					switch b.Cfg.Configuration.Type {
+					case "grpc":
+						backend = &GrpcServer{
+							address: ipv4.String(),
+						}
+					default:
+						logger.DiscoveryLog.Warnln("unsupported backend type: " +
+							b.Cfg.Configuration.Type)
+					}
 					ctx.Lock()
 					ctx.AddNF(backend)
 					ctx.Unlock()
