@@ -18,6 +18,7 @@ type BackendSvc struct {
 	Cfg config.Config
 }
 
+// SD-CORE AMF: use grpc protocol to receive ngap/nas message
 var _ context.NF = &GrpcServer{}
 
 type GrpcServer struct {
