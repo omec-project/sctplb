@@ -9,7 +9,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/omec-project/sctplb/config"
 	"github.com/omec-project/sctplb/context"
 	"github.com/omec-project/sctplb/logger"
 )
@@ -34,10 +33,6 @@ func RoundRobin() interface{} {
 	instance := ctx.Backends[next]
 	next++
 	return instance
-}
-
-type BackendSvc struct {
-	Cfg config.Config
 }
 
 func (b BackendSvc) Run() {
@@ -77,7 +72,7 @@ func (b BackendSvc) Run() {
 					ctx.Lock()
 					ctx.AddNF(backend)
 					ctx.Unlock()
-					go backend.connectToServer(b.Cfg.Configuration.SctpGrpcPort)
+					go backend.ConnectToServer(b.Cfg.Configuration.SctpGrpcPort)
 				}
 			}
 			time.Sleep(2 * time.Second)
@@ -85,7 +80,7 @@ func (b BackendSvc) Run() {
 	}
 }
 
-func (b *BackendNF) deleteBackendNF() {
+func deleteBackendNF(b interface{}) {
 	ctx := context.Sctplb_Self()
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -93,11 +88,6 @@ func (b *BackendNF) deleteBackendNF() {
 	for _, b1 := range ctx.Backends {
 		fmt.Printf("Available backend %v \n", b1)
 	}
-}
-
-type SctpConnections struct {
-	conn    net.Conn
-	address string
 }
 
 func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {

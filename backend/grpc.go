@@ -12,15 +12,7 @@ import (
 	"google.golang.org/grpc/connectivity"
 )
 
-type BackendNF struct {
-	address string
-	conn    *grpc.ClientConn
-	gc      gClient.NgapServiceClient
-	state   bool
-	stream  gClient.NgapService_HandleMessageClient
-}
-
-func (b *BackendNF) connectToServer(port int) {
+func (b *BackendNF) ConnectToServer(port int) {
 	target := fmt.Sprintf("%s:%d", b.address, port)
 
 	fmt.Println("Connecting to target ", target)
@@ -30,7 +22,7 @@ func (b *BackendNF) connectToServer(port int) {
 
 	if err != nil {
 		fmt.Println("did not connect: ", err)
-		b.deleteBackendNF()
+		deleteBackendNF(b)
 		return
 	}
 
@@ -39,7 +31,7 @@ func (b *BackendNF) connectToServer(port int) {
 	stream, err := b.gc.HandleMessage(ctxt.Background())
 	if err != nil {
 		logger.AppLog.Println("openn stream error ", err)
-		b.deleteBackendNF()
+		deleteBackendNF(b)
 		return
 	}
 
@@ -86,7 +78,7 @@ func (b *BackendNF) readFromServer() {
 		response, err := b.stream.Recv()
 		if err != nil {
 			logger.GrpcLog.Printf("Error in Recv %v, Stop listening for this server %v ", err, b.address)
-			b.deleteBackendNF()
+			deleteBackendNF(b)
 			return
 		} else {
 			if response.Msgtype == gClient.MsgType_INIT_MSG {
@@ -151,7 +143,7 @@ func (b *BackendNF) connectionOnState() {
 		for {
 			change := b.conn.WaitForStateChange(ctxt.Background(), b.conn.GetState())
 			if change && b.conn.GetState() == connectivity.Idle {
-				b.deleteBackendNF()
+				deleteBackendNF(b)
 				return
 			}
 
