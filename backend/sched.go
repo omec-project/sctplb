@@ -125,8 +125,7 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 			var i int
 			for ; i < ctx.NFLength(); i++ {
 				backend := ctx.Backends[i]
-				// backend := instance.(*GrpcServer)
-				if backend.State() == true {
+				if backend.State() {
 					if err := backend.Send(msg, true, ran); err != nil {
 						logger.SctpLog.Errorln("can not send ", err)
 					}
@@ -149,9 +148,8 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 	var i int
 	for ; i < ctx.NFLength(); i++ {
 		// Select the backend NF based on RoundRobin Algorithm
-		instance := RoundRobin()
-		backend := instance.(*GrpcServer)
-		if backend.state == true {
+		backend := RoundRobin()
+		if backend.State() {
 			if err := backend.Send(msg, false, ran); err != nil {
 				logger.SctpLog.Errorln("can not send: ", err)
 			}
