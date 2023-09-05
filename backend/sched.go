@@ -35,56 +35,58 @@ func RoundRobin() interface{} {
 	return instance
 }
 
-func (b BackendSvc) Run() {
+func (b BackendSvc) DispatchAddServer() {
 	// add server in pool
 	// create server
 	// create server outstanding message queue
 	// connect to server
 	// there can be more than 1 message outstanding toards same server
-	ctx := context.Sctplb_Self()
-	svcList := b.Cfg.Configuration.Services
-	for _, svc := range svcList {
-		for {
-			logger.DiscoveryLog.Traceln("Discover Service ", svc.Uri)
-			ips, err := net.LookupIP(svc.Uri)
-			if err != nil {
-				logger.DiscoveryLog.Errorln("Discover Service ", svc.Uri, " Error ", err)
-				time.Sleep(2 * time.Second)
-				continue
-			}
-			for _, ip := range ips {
-				logger.DiscoveryLog.Traceln("Discover Service ", svc.Uri, ", ip ", ip)
-				found := false
-				if ipv4 := ip.To4(); ipv4 != nil {
-					for _, instance := range ctx.Backends {
-						b := instance.(*GrpcServer)
-						if b.address == ipv4.String() {
-							found = true
-							break
+	for {
+		ctx := context.Sctplb_Self()
+		svcList := b.Cfg.Configuration.Services
+		for _, svc := range svcList {
+			for {
+				logger.DiscoveryLog.Traceln("Discover Service ", svc.Uri)
+				ips, err := net.LookupIP(svc.Uri)
+				if err != nil {
+					logger.DiscoveryLog.Errorln("Discover Service ", svc.Uri, " Error ", err)
+					time.Sleep(2 * time.Second)
+					continue
+				}
+				for _, ip := range ips {
+					logger.DiscoveryLog.Traceln("Discover Service ", svc.Uri, ", ip ", ip)
+					found := false
+					if ipv4 := ip.To4(); ipv4 != nil {
+						for _, instance := range ctx.Backends {
+							b := instance.(*GrpcServer)
+							if b.address == ipv4.String() {
+								found = true
+								break
+							}
 						}
-					}
-					if found == true {
-						continue
-					}
-					logger.DiscoveryLog.Infoln("New Server found IPv4: ", ipv4.String())
-					var backend context.NF
-					switch b.Cfg.Configuration.Type {
-					case "grpc":
-						backend = &GrpcServer{
-							address: ipv4.String(),
+						if found == true {
+							continue
 						}
-					default:
-						logger.DiscoveryLog.Warnln("unsupported backend type: " +
-							b.Cfg.Configuration.Type)
+						logger.DiscoveryLog.Infoln("New Server found IPv4: ", ipv4.String())
+						var backend context.NF
+						switch b.Cfg.Configuration.Type {
+						case "grpc":
+							backend = &GrpcServer{
+								address: ipv4.String(),
+							}
+						default:
+							logger.DiscoveryLog.Warnln("unsupported backend type: " +
+								b.Cfg.Configuration.Type)
+						}
+						ctx.Lock()
+						ctx.AddNF(backend)
+						ctx.Unlock()
+						go backend.ConnectToServer(b.Cfg.Configuration.SctpGrpcPort)
 					}
-					ctx.Lock()
-					ctx.AddNF(backend)
-					ctx.Unlock()
-					go backend.ConnectToServer(b.Cfg.Configuration.SctpGrpcPort)
 				}
 			}
-			time.Sleep(2 * time.Second)
 		}
+		time.Sleep(2 * time.Second)
 	}
 }
 

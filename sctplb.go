@@ -33,8 +33,5 @@ func main() {
 	var b = backend.BackendSvc{
 		Cfg: SimappConfig,
 	}
-	b.Run()
-
-	for {
-	}
+	b.DispatchAddServer()
 }
