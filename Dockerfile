@@ -7,8 +7,8 @@ FROM golang:1.21.3-bookworm AS lb
 
 LABEL maintainer="ONF <omec-dev@opennetworking.org>"
 
-RUN apt-get update
-RUN apt-get -y install vim 
+RUN echo "deb http://archive.debian.org/debian stretch main" > /etc/apt/sources.list
+RUN apt-get update && apt-get -y install vim
 RUN cd $GOPATH/src && mkdir -p sctplb
 COPY . $GOPATH/src/sctplb
 RUN cd $GOPATH/src/sctplb && go mod tidy && go install 
