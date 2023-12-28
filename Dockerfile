@@ -10,7 +10,7 @@ LABEL maintainer="ONF <omec-dev@opennetworking.org>"
 
 RUN cd $GOPATH/src && mkdir -p sctplb
 COPY . $GOPATH/src/sctplb
-RUN cd $GOPATH/src/sctplb && go mod tidy && CGO_ENABLED=0 go install
+RUN cd $GOPATH/src/sctplb && CGO_ENABLED=0 go install
 
 FROM alpine:3.19 AS sctplb
 
