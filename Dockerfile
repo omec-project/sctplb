@@ -1,20 +1,30 @@
 # Copyright 2022-present Open Networking Foundation
+# Copyright 2023-present Intel Corporation
 #
 # SPDX-License-Identifier: Apache-2.0
 #
 
-FROM golang:1.21.3-bookworm AS lb
+FROM golang:1.21.3-bookworm AS builder
 
 LABEL maintainer="ONF <omec-dev@opennetworking.org>"
 
-RUN apt-get update
-RUN apt-get -y install vim 
 RUN cd $GOPATH/src && mkdir -p sctplb
 COPY . $GOPATH/src/sctplb
-RUN cd $GOPATH/src/sctplb && go mod tidy && go install 
+RUN cd $GOPATH/src/sctplb && CGO_ENABLED=0 go install
 
-FROM lb AS sctplb
+FROM alpine:3.19 AS sctplb
+
+LABEL description="ONF open source 5G Core Network" \
+    version="Stage 3"
+
+ARG DEBUG_TOOLS
+
+# Install debug tools ~ 50MB (if DEBUG_TOOLS is set to true)
+RUN if [ "$DEBUG_TOOLS" = "true" ]; then \
+        apk update && apk add -U vim strace net-tools curl netcat-openbsd bind-tools bash; \
+        fi
+
 WORKDIR /sdcore
-RUN mkdir -p /sdcore/bin
-COPY --from=lb $GOPATH/bin/* /sdcore/bin/
+RUN mkdir -p bin/
+COPY --from=builder /go/bin/* /sdcore/bin/
 WORKDIR /sdcore
