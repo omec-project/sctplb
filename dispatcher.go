@@ -72,7 +72,7 @@ func RoundRobin(amfId int64) (nf *backendNF) {
 		if id != nil {
 			logger.DispatchLog.Infoln("Found owner id ", id)
 			for _, b1 := range backends {
-				if b1.state == true && b1.address == id.PodIp {
+				if b1.state && b1.address == id.PodIp {
 					nf = b1
 					logger.DispatchLog.Infoln("Found owner in backend table ", b1.address)
 					break
