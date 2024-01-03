@@ -42,7 +42,7 @@ func (b *GrpcServer) ConnectToServer(port int) {
 	b.stream = stream
 	b.state = true
 	for {
-		//INIT message to new NF instance
+		// INIT message to new NF instance
 		context.Sctplb_Self().RanPool.Range(func(key, value interface{}) bool {
 			req := gClient.SctplbMessage{}
 			req.VerboseMsg = "Hello From SCTP LB !"
@@ -102,7 +102,10 @@ func (b *GrpcServer) readFromServer() {
 							t.SctplbId = os.Getenv("HOSTNAME")
 							t.Msg = response.Msg
 							t.GnbId = response.GnbId
-							b1.stream.Send(&t)
+							err := b1.stream.Send(&t)
+							if err != nil {
+								logger.GrpcLog.Printf("error forwarding msg")
+							}
 							logger.GrpcLog.Printf("successfully forwarded msg to correct AMF")
 							found = true
 						}
@@ -112,10 +115,9 @@ func (b *GrpcServer) readFromServer() {
 				if !found {
 					logger.GrpcLog.Printf("dropping redirected message as backend ip [%v] is not exist", response.RedirectId)
 				}
-
 			} else {
 				var ran *context.Ran
-				//fetch ran connection based on GnbId
+				// fetch ran connection based on GnbId
 				if response.GnbId == "" {
 					logger.RanLog.Printf("Received null GnbId from backend NF")
 				} else if response.GnbIpAddr != "" {
@@ -129,7 +131,10 @@ func (b *GrpcServer) readFromServer() {
 					ran, _ = context.Sctplb_Self().RanFindByGnbId(response.GnbId)
 				}
 				if ran != nil {
-					ran.Conn.Write(response.Msg)
+					_, err := ran.Conn.Write(response.Msg)
+					if err != nil {
+						logger.RanLog.Printf("err %+v", err)
+					}
 				} else {
 					logger.RanLog.Printf("Couldn't fetch sctp connection with GnbId: %v", response.GnbId)
 				}
@@ -139,9 +144,7 @@ func (b *GrpcServer) readFromServer() {
 }
 
 func (b *GrpcServer) connectionOnState() {
-
 	go func() {
-
 		// continue checking for state change
 		// until one of break states is found
 		for {
@@ -150,10 +153,8 @@ func (b *GrpcServer) connectionOnState() {
 				deleteBackendNF(b)
 				return
 			}
-
 		}
 	}()
-
 }
 
 func (b *GrpcServer) Send(msg []byte, end bool, ran *context.Ran) error {
@@ -170,8 +171,8 @@ func (b *GrpcServer) Send(msg []byte, end bool, ran *context.Ran) error {
 		t.VerboseMsg = "Hello From gNB Message !"
 		t.Msgtype = gClient.MsgType_GNB_MSG
 		t.SctplbId = os.Getenv("HOSTNAME")
-		//send GnbId to backendNF if exist
-		//GnbIp to backend ig GnbId is not exist, mostly this is for NGSetup Message
+		// send GnbId to backendNF if exist
+		// GnbIp to backend ig GnbId is not exist, mostly this is for NGSetup Message
 		if ran.RanId != nil {
 			t.GnbId = *ran.RanId
 		} else {

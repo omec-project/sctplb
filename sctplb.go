@@ -30,7 +30,7 @@ func main() {
 	logger.AppLog.Println("SCTP Port ", SimappConfig.Configuration.NgapPort, " grpc port : ", SimappConfig.Configuration.SctpGrpcPort)
 	backend.ServiceRun(SimappConfig.Configuration.NgapIpList, SimappConfig.Configuration.NgapPort)
 
-	var b = backend.BackendSvc{
+	b := backend.BackendSvc{
 		Cfg: SimappConfig,
 	}
 	b.DispatchAddServer()
