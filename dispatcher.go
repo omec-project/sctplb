@@ -13,9 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/omec-project/ngap"
+	"github.com/omec-project/ngap/ngapType"
 	"github.com/omec-project/sctplb/context"
 	"github.com/omec-project/sctplb/logger"
 	gClient "github.com/omec-project/sctplb/sdcoreAmfServer"
+	"github.com/omec-project/util/drsm"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 )
@@ -29,14 +32,29 @@ type backendNF struct {
 }
 
 var (
-	backends []*backendNF
-	nfNum    int
-	next     int
-	mutex    sync.Mutex
+	backends      []*backendNF
+	nfNum         int64
+	next          int64
+	mutex         sync.Mutex
+	drsmInitDone  bool = false
+	Drsm          drsm.DrsmInterface
+	redirectCount int64
 )
 
+func InitDrsm() (drsm.DrsmInterface, error) {
+	podname := os.Getenv("HOSTNAME")
+	podip := os.Getenv("POD_IP")
+	podId := drsm.PodId{PodName: podname, PodIp: podip}
+	dbUrl := "mongodb://mongodb-arbiter-headless"
+	opt := &drsm.Options{ResIdSize: 24, Mode: drsm.ResourceDemux}
+	db := drsm.DbInfo{Url: dbUrl, Name: "sdcore_amf"}
+
+	return drsm.InitDRSM("amfid", podId, db, opt)
+}
+
 // returns the backendNF using RoundRobin algorithm
-func RoundRobin() (nf *backendNF) {
+func RoundRobin(amfId int64) (nf *backendNF) {
+	var index int64
 	mutex.Lock()
 	defer mutex.Unlock()
 
@@ -47,9 +65,29 @@ func RoundRobin() (nf *backendNF) {
 	if next >= nfNum {
 		next = 0
 	}
-
-	nf = backends[next]
-	next++
+	if amfId != 0 && drsmInitDone {
+		var id *drsm.PodId
+		logger.DispatchLog.Errorln("find amfId owner ", amfId)
+		id, _ = Drsm.FindOwnerInt32ID(int32(amfId))
+		if id != nil {
+			logger.DispatchLog.Infoln("Found owner id ", id)
+			for _, b1 := range backends {
+				if b1.state && b1.address == id.PodIp {
+					nf = b1
+					logger.DispatchLog.Infoln("Found owner in backend table ", b1.address)
+					break
+				}
+			}
+		} else {
+			logger.DispatchLog.Errorln("did not find owner for amfid ", amfId)
+			index = amfId % nfNum
+			nf = backends[index]
+		}
+	} else {
+		logger.DispatchLog.Infoln("use default round robin for amdId ", amfId)
+		nf = backends[next]
+		next++
+	}
 	return nf
 }
 
@@ -59,6 +97,14 @@ func dispatchAddServer(serviceName string) {
 	// create server outstanding message queue
 	// connect to server
 	// there can be more than 1 message outstanding toards same server
+
+	if !drsmInitDone {
+        var err error
+		Drsm, err = InitDrsm()
+		if err == nil {
+			drsmInitDone = true
+		}
+	}
 
 	for {
 		logger.DiscoveryLog.Traceln("Discover Service ", serviceName)
@@ -121,9 +167,7 @@ func (b *backendNF) deleteBackendNF() {
 		if b1 == b {
 			backends[i] = backends[len(backends)-1]
 			backends = backends[:len(backends)-1]
-			mutex.Lock()
 			nfNum--
-			mutex.Unlock()
 			break
 		}
 	}
@@ -143,9 +187,12 @@ func (b *backendNF) readFromServer() {
 			if response.Msgtype == gClient.MsgType_INIT_MSG {
 				log.Printf("Init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
 			} else if response.Msgtype == gClient.MsgType_REDIRECT_MSG {
+				log.Printf("Redirect message count %v", redirectCount)
+				redirectCount++
 				var found bool
 				for _, b1 := range backends {
 					if b1.address == response.RedirectId {
+						log.Printf("Received REDIRECT message ")
 						if b1.state == false {
 							log.Printf("backend state is not in READY state, so not forwarding redirected Msg")
 						} else {
@@ -156,7 +203,6 @@ func (b *backendNF) readFromServer() {
 							t.Msg = response.Msg
 							t.GnbId = response.GnbId
 							b1.stream.Send(&t)
-							log.Printf("successfully forwarded msg to correct AMF")
 							found = true
 						}
 						break
@@ -225,8 +271,8 @@ func (b *backendNF) connectToServer() {
 			req.Msgtype = gClient.MsgType_INIT_MSG
 			req.SctplbId = os.Getenv("HOSTNAME")
 			candidate := value.(*context.Ran)
-			if candidate.RanId != nil {
-				req.GnbId = *candidate.RanId
+			if candidate.RanId != "" {
+				req.GnbId = candidate.RanId
 			} else {
 				log.Printf("ran connection %v is exist without GnbId, so not sending this ran details to NF",
 					candidate.GnbIp)
@@ -269,7 +315,6 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		return
 	} else {
 		peer = p.(*SctpConnections)
-		logger.SctpLog.Warnf("Handle SCTP Notification[addr: %+v], peer %v ", conn.RemoteAddr(), peer)
 	}
 
 	ran, _ := context.Sctplb_Self().RanFindByConn(conn)
@@ -279,8 +324,8 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		t.VerboseMsg = "Bye From gNB Message !"
 		t.Msgtype = gClient.MsgType_GNB_DISC
 		t.SctplbId = os.Getenv("HOSTNAME")
-		if ran != nil && ran.RanId != nil {
-			t.GnbId = *ran.RanId
+		if ran != nil && ran.RanId != "" {
+			t.GnbId = ran.RanId
 		}
 		t.Msg = msg
 		if backends != nil && len(backends) > 0 {
@@ -296,33 +341,84 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		} else {
 			logger.SctpLog.Errorln("No AMF Connections")
 		}
+		ran.Log.Infof("Delete RAN Context[ID: %s]", ran.RanID())
 		context.Sctplb_Self().DeleteRan(conn)
 		return
 	}
 	if ran == nil {
 		ran = context.Sctplb_Self().NewRan(conn)
 	}
-	logger.SctpLog.Println("Message received from remoteAddr ", conn.RemoteAddr().String())
+	pdu, err := ngap.Decoder(msg)
+	if err != nil {
+		ran.Log.Errorf("NGAP decode error : %+v", err)
+		return
+	}
+	var amfId int64 = 0
+	switch pdu.Present {
+	case ngapType.NGAPPDUPresentInitiatingMessage:
+		initiatingMessage := pdu.InitiatingMessage
+		if initiatingMessage == nil {
+			ran.Log.Errorln("Initiating Message is nil")
+			break
+		}
+		switch initiatingMessage.ProcedureCode.Value {
+		case ngapType.ProcedureCodeUplinkNASTransport:
+			uplinkNasTransport := initiatingMessage.Value.UplinkNASTransport
+			if uplinkNasTransport == nil {
+				ran.Log.Error("UplinkNasTransport is nil")
+				break
+			}
+			for i := 0; i < len(uplinkNasTransport.ProtocolIEs.List); i++ {
+				ie := uplinkNasTransport.ProtocolIEs.List[i]
+				switch ie.Id.Value {
+				case ngapType.ProtocolIEIDAMFUENGAPID:
+					var aMFUENGAPID *ngapType.AMFUENGAPID
+					aMFUENGAPID = ie.Value.AMFUENGAPID
+					ran.Log.Trace("Decode IE AmfUeNgapID")
+					if aMFUENGAPID == nil {
+						ran.Log.Error("AmfUeNgapID is nil")
+						break
+					}
+					amfId = aMFUENGAPID.Value
+					break
+				}
+				if amfId != 0 {
+					break
+				}
+			}
+		}
+	}
+
 	t := gClient.SctplbMessage{}
 	t.VerboseMsg = "Hello From gNB Message !"
 	t.Msgtype = gClient.MsgType_GNB_MSG
 	t.SctplbId = os.Getenv("HOSTNAME")
 	//send GnbId to backendNF if exist
 	//GnbIp to backend ig GnbId is not exist, mostly this is for NGSetup Message
-	if ran.RanId != nil {
-		t.GnbId = *ran.RanId
+	if ran.RanId != "" {
+		t.GnbId = ran.RanId
 	} else {
 		t.GnbIpAddr = conn.RemoteAddr().String()
 	}
 	t.Msg = msg
 	if len(backends) == 0 {
-		fmt.Println("NO backend available")
+		fmt.Println("No backend available")
 		return
 	}
 	var i int
 	for ; i < len(backends); i++ {
-		//Select the backend NF based on RoundRobin Algorithm
-		backend := RoundRobin()
+		// Select the backend NF based on RoundRobin Algorithm
+		// a. For initial message load balancing is Round Robin & for uplink transport messages
+		//    load balancing is based on hashing.
+		// b. Redirect support in AMF<-->SCTPLB is still required because under some corner cases
+		//    it is possible that message may go to wrong AMF
+		// c. If number of AMF instances are more then which means more redirect messages which means 2 times SCTP message decode
+		//    so it makes sense to add NGAP decoding support at SCTPLB itself.
+		//
+		// TBD : 1) Use DRSM to send request to correct AMF or
+		//          Use consistent hashing to send message to AMF which owns the hash index
+		//       2) NAS decoding to fetch TMSI and send message to one of the AMF using hashing or DRSM
+		backend := RoundRobin(amfId)
 		if backend.state == true {
 			if err := backend.stream.Send(&t); err != nil {
 				logger.SctpLog.Errorln("can not send: ", err)
