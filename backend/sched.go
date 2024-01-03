@@ -17,8 +17,13 @@ var (
 	next int
 )
 
+type Backend interface {
+	State() bool
+	Send(msg []byte, b bool, ran *context.Ran) error
+}
+
 // returns the backendNF using RoundRobin algorithm
-func RoundRobin() interface{} {
+func RoundRobin() Backend {
 	ctx := context.Sctplb_Self()
 	len := ctx.NFLength()
 
