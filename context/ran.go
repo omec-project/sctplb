@@ -23,7 +23,7 @@ type SctplbContext struct {
 }
 
 type Ran struct {
-	RanId string
+	RanId *string
 	Name  string
 	GnbIp string
 	/* socket Connect*/
@@ -38,11 +38,14 @@ func (ran *Ran) Remove() {
 }
 
 func (ran *Ran) SetRanId(gnbId string) {
-	ran.RanId = gnbId
+	ran.RanId = &gnbId
 }
 
 func (ran *Ran) RanID() string {
-	return fmt.Sprintf("<Mcc:Mnc:GNbID %s>", ran.RanId)
+	if ran.RanId != nil {
+		return fmt.Sprintf("<Mcc:Mnc:GNbID %s>", ran.RanId)
+	}
+	return ""
 }
 
 func (context *SctplbContext) NewRan(conn net.Conn) *Ran {
@@ -50,7 +53,6 @@ func (context *SctplbContext) NewRan(conn net.Conn) *Ran {
 	ran.Conn = conn
 	ran.GnbIp = conn.RemoteAddr().String()
 	ran.Log = logger.RanLog.WithField(logger.FieldRanAddr, conn.RemoteAddr().String())
-	ran.Log.Infof("Add RAN Context[ID: %s]", ran.RanID())
 	context.RanPool.Store(conn, &ran)
 	return &ran
 }
@@ -67,7 +69,7 @@ func (context *SctplbContext) RanFindByConn(conn net.Conn) (*Ran, bool) {
 func (context *SctplbContext) RanFindByGnbId(gnbId string) (ran *Ran, ok bool) {
 	context.RanPool.Range(func(key, value interface{}) bool {
 		candidate := value.(*Ran)
-		if ok = (candidate.RanId == gnbId); ok {
+		if ok = (*candidate.RanId == gnbId); ok {
 			ran = candidate
 			return false
 		}
