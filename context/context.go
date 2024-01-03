@@ -19,8 +19,15 @@ import (
 var sctplbContext = SctplbContext{}
 
 type SctplbContext struct {
-	RanPool sync.Map // map[net.Conn]*Ran
+	RanPool  sync.Map // map[net.Conn]*Ran
+	Backends []NF
 }
+
+var (
+	nfNum int
+	next  int
+	mutex sync.Mutex
+)
 
 type Ran struct {
 	RanId *string
@@ -43,7 +50,7 @@ func (ran *Ran) SetRanId(gnbId string) {
 
 func (ran *Ran) RanID() string {
 	if ran.RanId != nil {
-		return fmt.Sprintf("<Mcc:Mnc:GNbID %s>", ran.RanId)
+		return fmt.Sprintf("<Mcc:Mnc:GNbID %s>", *ran.RanId)
 	}
 	return ""
 }
@@ -98,4 +105,44 @@ func (context *SctplbContext) DeleteRan(conn net.Conn) {
 // Create new AMF context
 func Sctplb_Self() *SctplbContext {
 	return &sctplbContext
+}
+
+type NF interface {
+	ConnectToServer(int)
+	Send([]byte, bool, *Ran) error
+	State() bool
+}
+
+func (context *SctplbContext) DeleteNF(target NF) {
+	for i, instance := range sctplbContext.Backends {
+		if instance == target {
+			sctplbContext.Backends[i] = sctplbContext.Backends[len(sctplbContext.Backends)-1]
+			sctplbContext.Backends = sctplbContext.Backends[:len(sctplbContext.Backends)-1]
+			nfNum--
+			break
+		}
+	}
+}
+
+func (context *SctplbContext) Iterate(handler func(k int, v NF)) {
+	for k, v := range context.Backends {
+		handler(k, v)
+	}
+}
+
+func (context *SctplbContext) AddNF(target NF) {
+	context.Backends = append(context.Backends, target)
+	nfNum++
+}
+
+func (context *SctplbContext) NFLength() int {
+	return nfNum
+}
+
+func (context *SctplbContext) Lock() {
+	mutex.Lock()
+}
+
+func (context *SctplbContext) Unlock() {
+	mutex.Unlock()
 }

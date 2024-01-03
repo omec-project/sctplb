@@ -2,16 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+info:
+  description: SctpLb initial local configuration
+  version: 1.0.1
+logger:
+  sctpLogs: info
+  dispatcherLogs: info
+  clientdiscLogs: info
 configuration:
-  info:
-    description: SctpLb initial local configuration
-    version: 1.0.0
-  logger:
-    sctpLogs: info
-    dispatcherLogs: info
-    clientdiscLogs: info
-  configuration:
-    ngapIpList:
-    - 0.0.0.0
-    serviceNames:
-    - "sctplb"
+  ngapIpList:
+  - 0.0.0.0
+  ngappPort: 38416
+  sctpGrpcPort: 5000
+  type: "grpc"
+  services:
+    - uri: "sctplb"

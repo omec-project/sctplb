@@ -5,36 +5,12 @@
 package main
 
 import (
-	"io/ioutil"
 	"log"
-	"time"
 
+	"github.com/omec-project/sctplb/backend"
+	"github.com/omec-project/sctplb/config"
 	"github.com/omec-project/sctplb/logger"
-	"gopkg.in/yaml.v2"
 )
-
-//var msgChan chan datamodels.SctpLbMessage
-
-type Config struct {
-	Info          *Info          `yaml:"info"`
-	Configuration *Configuration `yaml:"configuration"`
-	Logger        *Logger        `yaml:"logger"`
-}
-
-type Logger struct {
-}
-
-type Info struct {
-	Version     string `yaml:"version,omitempty"`
-	Description string `yaml:"description,omitempty"`
-}
-
-type Configuration struct {
-	ServiceName  []string `yaml:"serviceNames,omitempty"`
-	NgapIpList   []string `yaml:"ngapIpList,omitempty"`
-	NgapPort     int      `yaml:"ngappPort,omitempty"`
-	SctpGrpcPort int      `yaml:"sctpGrpcPort,omitempty"`
-}
 
 const (
 	add_op = iota
@@ -42,42 +18,20 @@ const (
 	delete_op
 )
 
-var SimappConfig Config
-
-func InitConfigFactory(f string) error {
-	if content, err := ioutil.ReadFile(f); err != nil {
-		logger.CfgLog.Errorf("Readfile failed called ", err)
-		return err
-	} else {
-		SimappConfig = Config{}
-
-		if yamlErr := yaml.Unmarshal(content, &SimappConfig); yamlErr != nil {
-			logger.CfgLog.Errorf("yaml parsing failed ", yamlErr)
-			return yamlErr
-		}
-	}
-	if SimappConfig.Configuration == nil {
-		logger.CfgLog.Errorf("Configuration Parsing Failed ", SimappConfig.Configuration)
-		return nil
-	}
-	return nil
-}
-
 func main() {
-	log.Println("SCTP LB started")
+	logger.AppLog.Println("SCTP LB started")
 
-	InitConfigFactory("./config/sctplb.yaml")
-
-	//Read messages from SCTP Sockets and push it on channel
-	log.Println("SCTP Port ", SimappConfig.Configuration.NgapPort, " grpc port : ", SimappConfig.Configuration.SctpGrpcPort)
-	serviceRun(SimappConfig.Configuration.NgapIpList, SimappConfig.Configuration.NgapPort)
-
-	for _, name := range SimappConfig.Configuration.ServiceName {
-		go dispatchAddServer(name)
+	SimappConfig, err := config.InitConfigFactory("./config/sctplb.yaml")
+	if err != nil {
+		log.Fatalln(err)
 	}
 
-	for {
-		time.Sleep(100 * time.Second)
+	// Read messages from SCTP Sockets and push it on channel
+	logger.AppLog.Println("SCTP Port ", SimappConfig.Configuration.NgapPort, " grpc port : ", SimappConfig.Configuration.SctpGrpcPort)
+	backend.ServiceRun(SimappConfig.Configuration.NgapIpList, SimappConfig.Configuration.NgapPort)
+
+	var b = backend.BackendSvc{
+		Cfg: SimappConfig,
 	}
-	logger.CfgLog.Errorf("Testing log %+v", 1)
+	b.DispatchAddServer()
 }
