@@ -12,10 +12,9 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/omec-project/sctplb/logger"
-
 	"git.cs.nctu.edu.tw/calee/sctp"
 	"github.com/omec-project/ngap"
+	"github.com/omec-project/sctplb/logger"
 )
 
 type SCTPHandler struct {
@@ -40,7 +39,6 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 }
 
 func ServiceRun(addresses []string, port int) {
-
 	fmt.Println("service Run is called")
 	handler := SCTPHandler{
 		HandleMessage: dispatchMessage,
@@ -152,7 +150,6 @@ func listenAndServe(addr *sctp.SCTPAddr, handler SCTPHandler) {
 }
 
 func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) {
-
 	defer func() {
 		// if AMF call Stop(), then conn.Close() will return EBADF because conn has been closed inside Stop()
 		if err := conn.Close(); err != nil && err != syscall.EBADF {

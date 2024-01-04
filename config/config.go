@@ -18,8 +18,7 @@ type Config struct {
 	Logger        *Logger        `yaml:"logger"`
 }
 
-type Logger struct {
-}
+type Logger struct{}
 
 type Info struct {
 	Version     string `yaml:"version,omitempty"`

@@ -13,9 +13,7 @@ import (
 	"github.com/omec-project/sctplb/logger"
 )
 
-var (
-	next int
-)
+var next int
 
 type Backend interface {
 	State() bool
@@ -25,13 +23,13 @@ type Backend interface {
 // returns the backendNF using RoundRobin algorithm
 func RoundRobin() Backend {
 	ctx := context.Sctplb_Self()
-	len := ctx.NFLength()
+	length := ctx.NFLength()
 
-	if len <= 0 {
+	if length <= 0 {
 		logger.DispatchLog.Errorln("There are no backend NFs running")
 		return nil
 	}
-	if next >= len {
+	if next >= length {
 		next = 0
 	}
 

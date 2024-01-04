@@ -22,6 +22,8 @@ DOCKER_LABEL_BUILD_DATE  ?= $(shell date -u "+%Y-%m-%dT%H:%M:%SZ")
 
 DOCKER_TARGETS           ?= sctplb
 
+.PHONY: docker-build docker-push
+
 # https://docs.docker.com/engine/reference/commandline/build/#specifying-target-build-stage---target
 docker-build:
 	for target in $(DOCKER_TARGETS); do \
@@ -42,5 +44,25 @@ docker-push:
 		docker push ${DOCKER_REGISTRY}${DOCKER_REPOSITORY}$$target:${DOCKER_TAG}; \
 	done
 
+.coverage:
+	rm -rf $(CURDIR)/.coverage
+	mkdir -p $(CURDIR)/.coverage
 
-.PHONY: docker-build docker-push
+test: .coverage
+	docker run --rm -v $(CURDIR):/smf -w /smf golang:latest \
+		go test \
+			-race \
+			-failfast \
+			-coverprofile=.coverage/coverage-unit.txt \
+			-covermode=atomic \
+			-v \
+			./ ./...
+
+fmt:
+	@go fmt ./...
+
+golint:
+	@docker run --rm -v $(CURDIR):/app -w /app golangci/golangci-lint:latest golangci-lint run -v --config /app/.golangci.yml
+
+check-reuse:
+	@docker run --rm -v $(CURDIR):/smf -w /smf omecproject/reuse-verify:latest reuse lint
