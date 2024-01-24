@@ -68,3 +68,15 @@ jobs:
         uses: fossa-contrib/fossa-action@v3
         with:
           fossa-api-key: 9dc8fa92e3dd565687317beb87b56d89
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Unit tests
+        run: go test ./...
