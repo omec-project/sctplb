@@ -2,8 +2,6 @@ module github.com/omec-project/sctplb
 
 go 1.21
 
-replace github.com/omec-project/sctplb => ./
-
 require (
 	git.cs.nctu.edu.tw/calee/sctp v1.1.0
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
