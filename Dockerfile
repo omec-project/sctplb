@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-FROM golang:1.22.0-bookworm AS builder
+FROM golang:1.22.1-bookworm AS builder
 
-LABEL maintainer="ONF <omec-dev@opennetworking.org>"
+LABEL maintainer="Aether SD-Core <dev@lists.aetherproject.org>"
 
 RUN cd $GOPATH/src && mkdir -p sctplb
 COPY . $GOPATH/src/sctplb
