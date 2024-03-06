@@ -6,7 +6,7 @@
 
 FROM golang:1.22.1-bookworm AS builder
 
-LABEL maintainer="Aether SD-Core <dev@aetherproject.org>"
+LABEL maintainer="Aether SD-Core <dev@lists.aetherproject.org>"
 
 RUN cd $GOPATH/src && mkdir -p sctplb
 COPY . $GOPATH/src/sctplb
