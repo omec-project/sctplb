@@ -8,9 +8,9 @@ FROM golang:1.22.2-bookworm AS builder
 
 LABEL maintainer="Aether SD-Core <dev@lists.aetherproject.org>"
 
-RUN cd $GOPATH/src && mkdir -p sctplb
-COPY . $GOPATH/src/sctplb
-RUN cd $GOPATH/src/sctplb && CGO_ENABLED=0 go install
+WORKDIR $GOPATH/src/sctplb
+COPY . .
+RUN CGO_ENABLED=0 go install
 
 FROM alpine:3.19 AS sctplb
 
@@ -21,7 +21,7 @@ ARG DEBUG_TOOLS
 
 # Install debug tools ~ 50MB (if DEBUG_TOOLS is set to true)
 RUN if [ "$DEBUG_TOOLS" = "true" ]; then \
-        apk update && apk add -U vim strace net-tools curl netcat-openbsd bind-tools bash; \
+        apk update && apk add --no-cache -U vim strace net-tools curl netcat-openbsd bind-tools bash; \
         fi
 
 WORKDIR /sdcore
