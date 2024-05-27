@@ -12,7 +12,7 @@ WORKDIR $GOPATH/src/sctplb
 COPY . .
 RUN CGO_ENABLED=0 go install
 
-FROM alpine:3.19 AS sctplb
+FROM alpine:3.20 AS sctplb
 
 LABEL description="ONF open source 5G Core Network" \
     version="Stage 3"
