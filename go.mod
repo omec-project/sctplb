@@ -5,7 +5,7 @@ go 1.21
 require (
 	git.cs.nctu.edu.tw/calee/sctp v1.1.0
 	github.com/antonfisher/nested-logrus-formatter v1.3.1
-	github.com/omec-project/ngap v1.2.1
+	github.com/omec-project/ngap v1.2.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/grpc v1.64.0
