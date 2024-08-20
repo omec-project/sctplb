@@ -6,7 +6,7 @@ package config
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 
 	"github.com/omec-project/sctplb/logger"
 	"gopkg.in/yaml.v2"
@@ -39,8 +39,8 @@ type Configuration struct {
 
 func InitConfigFactory(f string) (Config, error) {
 	var SimappConfig Config
-	if content, err := ioutil.ReadFile(f); err != nil {
-		logger.CfgLog.Errorf("Readfile failed called %v", err)
+	if content, err := os.ReadFile(f); err != nil {
+		logger.CfgLog.Errorf("readfile failed called %v", err)
 		return SimappConfig, err
 	} else {
 		SimappConfig = Config{}
@@ -51,8 +51,8 @@ func InitConfigFactory(f string) (Config, error) {
 		}
 	}
 	if SimappConfig.Configuration == nil {
-		logger.CfgLog.Errorf("Configuration Parsing Failed %v", SimappConfig.Configuration)
-		return SimappConfig, errors.New("Configuration Parsing Failed")
+		logger.CfgLog.Errorf("configuration parsing failed %v", SimappConfig.Configuration)
+		return SimappConfig, errors.New("configuration parsing failed")
 	}
 	return SimappConfig, nil
 }
