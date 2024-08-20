@@ -48,9 +48,9 @@ func ServiceRun(addresses []string, port int) {
 
 	for _, addr := range addresses {
 		if netAddr, err := net.ResolveIPAddr("ip", addr); err != nil {
-			logger.SctpLog.Errorf("Error resolving address '%s': %v\n", addr, err)
+			logger.SctpLog.Errorf("error resolving address '%s': %v\n", addr, err)
 		} else {
-			logger.SctpLog.Debugf("Resolved address '%s' to %s\n", addr, netAddr)
+			logger.SctpLog.Debugf("resolved address '%s' to %s\n", addr, netAddr)
 			ips = append(ips, *netAddr)
 		}
 	}
@@ -65,54 +65,54 @@ func ServiceRun(addresses []string, port int) {
 
 func listenAndServe(addr *sctp.SCTPAddr, handler SCTPHandler) {
 	if listener, err := sctpConfig.Listen("sctp", addr); err != nil {
-		logger.SctpLog.Errorf("Failed to listen: %+v", err)
+		logger.SctpLog.Errorf("failed to listen: %+v", err)
 		return
 	} else {
 		sctpListener = listener
 	}
 
-	logger.SctpLog.Infof("Listen on %s", sctpListener.Addr())
+	logger.SctpLog.Infof("listen on %s", sctpListener.Addr())
 
 	for {
 		newConn, err := sctpListener.AcceptSCTP()
 		if err != nil {
 			switch err {
 			case syscall.EINTR, syscall.EAGAIN:
-				logger.SctpLog.Debugf("AcceptSCTP: %+v", err)
+				logger.SctpLog.Debugf("acceptSCTP: %+v", err)
 			default:
-				logger.SctpLog.Errorf("Failed to accept: %+v", err)
+				logger.SctpLog.Errorf("failed to accept: %+v", err)
 			}
 			continue
 		}
 
 		var info *sctp.SndRcvInfo
 		if infoTmp, err := newConn.GetDefaultSentParam(); err != nil {
-			logger.SctpLog.Errorf("Get default sent param error: %+v, accept failed", err)
+			logger.SctpLog.Errorf("get default sent param error: %+v, accept failed", err)
 			if err = newConn.Close(); err != nil {
-				logger.SctpLog.Errorf("Close error: %+v", err)
+				logger.SctpLog.Errorf("close error: %+v", err)
 			}
 			continue
 		} else {
 			info = infoTmp
-			logger.SctpLog.Debugf("Get default sent param[value: %+v]", info)
+			logger.SctpLog.Debugf("get default sent param[value: %+v]", info)
 		}
 
 		info.PPID = ngap.PPID
 		if err := newConn.SetDefaultSentParam(info); err != nil {
-			logger.SctpLog.Errorf("Set default sent param error: %+v, accept failed", err)
+			logger.SctpLog.Errorf("set default sent param error: %+v, accept failed", err)
 			if err = newConn.Close(); err != nil {
-				logger.SctpLog.Errorf("Close error: %+v", err)
+				logger.SctpLog.Errorf("close error: %+v", err)
 			}
 			continue
 		} else {
-			logger.SctpLog.Debugf("Set default sent param[value: %+v]", info)
+			logger.SctpLog.Debugf("set default sent param[value: %+v]", info)
 		}
 
 		events := sctp.SCTP_EVENT_DATA_IO | sctp.SCTP_EVENT_SHUTDOWN | sctp.SCTP_EVENT_ASSOCIATION
 		if err := newConn.SubscribeEvents(events); err != nil {
-			logger.SctpLog.Errorf("Failed to accept: %+v", err)
+			logger.SctpLog.Errorf("failed to accept: %+v", err)
 			if err = newConn.Close(); err != nil {
-				logger.SctpLog.Errorf("Close error: %+v", err)
+				logger.SctpLog.Errorf("close error: %+v", err)
 			}
 			continue
 		} else {
@@ -120,23 +120,23 @@ func listenAndServe(addr *sctp.SCTPAddr, handler SCTPHandler) {
 		}
 
 		if err := newConn.SetReadBuffer(int(readBufSize)); err != nil {
-			logger.SctpLog.Errorf("Set read buffer error: %+v, accept failed", err)
+			logger.SctpLog.Errorf("set read buffer error: %+v, accept failed", err)
 			if err = newConn.Close(); err != nil {
-				logger.SctpLog.Errorf("Close error: %+v", err)
+				logger.SctpLog.Errorf("close error: %+v", err)
 			}
 			continue
 		} else {
-			logger.SctpLog.Debugf("Set read buffer to %d bytes", readBufSize)
+			logger.SctpLog.Debugf("set read buffer to %d bytes", readBufSize)
 		}
 
 		if err := newConn.SetReadTimeout(readTimeout); err != nil {
-			logger.SctpLog.Errorf("Set read timeout error: %+v, accept failed", err)
+			logger.SctpLog.Errorf("set read timeout error: %+v, accept failed", err)
 			if err = newConn.Close(); err != nil {
-				logger.SctpLog.Errorf("Close error: %+v", err)
+				logger.SctpLog.Errorf("close error: %+v", err)
 			}
 			continue
 		} else {
-			logger.SctpLog.Debugf("Set read timeout: %+v", readTimeout)
+			logger.SctpLog.Debugf("set read timeout: %+v", readTimeout)
 		}
 
 		logger.SctpLog.Infof("[AMF] SCTP Accept from: %s", newConn.RemoteAddr().String())
@@ -158,8 +158,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 		connections.Delete(conn)
 	}()
 
-	var GnbConnChan chan bool
-	GnbConnChan = make(chan bool)
+	GnbConnChan := make(chan bool)
 
 	go func() {
 		for {
@@ -169,7 +168,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 			if err != nil {
 				switch err {
 				case io.EOF, io.ErrUnexpectedEOF:
-					logger.SctpLog.Debugln("Read EOF from client")
+					logger.SctpLog.Debugln("read EOF from client")
 					GnbConnChan <- false
 					return
 				case syscall.EAGAIN:
@@ -179,7 +178,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 					logger.SctpLog.Debugf("SCTPRead: %+v", err)
 					continue
 				default:
-					logger.SctpLog.Errorf("Handle connection[addr: %+v] error: %+v", conn.RemoteAddr(), err)
+					logger.SctpLog.Errorf("handle connection[addr: %+v] error: %+v", conn.RemoteAddr(), err)
 					GnbConnChan <- false
 					return
 				}
@@ -188,33 +187,30 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 			if notification != nil {
 				p, ok := connections.Load(conn)
 				if !ok {
-					logger.SctpLog.Infof("Notification for unknown connection")
+					logger.SctpLog.Infof("notification for unknown connection")
 				} else {
 					peer := p.(*SctpConnections)
-					logger.SctpLog.Warnf("Handle SCTP Notification[addr: %+v], peer %v ", conn.RemoteAddr(), peer)
+					logger.SctpLog.Warnf("handle SCTP Notification[addr: %+v], peer %v ", conn.RemoteAddr(), peer)
 					GnbConnChan <- false
 				}
 			} else {
 				if info == nil || info.PPID != ngap.PPID {
-					logger.SctpLog.Warnln("Received SCTP PPID != 60, discard this packet")
+					logger.SctpLog.Warnln("received SCTP PPID != 60, discard this packet")
 					continue
 				}
 
-				logger.SctpLog.Tracef("Read %d bytes", n)
-				logger.SctpLog.Tracef("Packet content:\n%+v", hex.Dump(buf[:n]))
+				logger.SctpLog.Tracef("read %d bytes", n)
+				logger.SctpLog.Tracef("packet content:\n%+v", hex.Dump(buf[:n]))
 
 				handler.HandleMessage(conn, buf[:n])
 			}
 		}
 	}()
 
-	for {
-		select {
-		case x := <-GnbConnChan:
-			logger.SctpLog.Errorln("Closing gnb Connection  ", x)
-			buf := make([]byte, bufsize)
-			handler.HandleMessage(conn, buf[:0])
-			return
-		}
+	for x := range GnbConnChan {
+		logger.SctpLog.Errorln("closing gnb Connection  ", x)
+		buf := make([]byte, bufsize)
+		handler.HandleMessage(conn, buf[:0])
+		return
 	}
 }

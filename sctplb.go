@@ -12,12 +12,6 @@ import (
 	"github.com/omec-project/sctplb/logger"
 )
 
-const (
-	add_op = iota
-	modify_op
-	delete_op
-)
-
 func main() {
 	logger.AppLog.Println("SCTP LB started")
 

@@ -25,7 +25,6 @@ type SctplbContext struct {
 
 var (
 	nfNum int
-	next  int
 	mutex sync.Mutex
 )
 

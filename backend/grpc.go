@@ -14,6 +14,7 @@ import (
 	gClient "github.com/omec-project/sctplb/sdcoreAmfServer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func (b *GrpcServer) ConnectToServer(port int) {
@@ -22,7 +23,7 @@ func (b *GrpcServer) ConnectToServer(port int) {
 	fmt.Println("Connecting to target ", target)
 
 	var err error
-	b.conn, err = grpc.Dial(target, grpc.WithInsecure())
+	b.conn, err = grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	if err != nil {
 		fmt.Println("did not connect: ", err)
@@ -58,20 +59,20 @@ func (b *GrpcServer) ConnectToServer(port int) {
 			if err := stream.Send(&req); err != nil {
 				logger.AppLog.Println("can not send: ", err)
 			}
-			logger.AppLog.Println("Send Request message")
+			logger.AppLog.Println("send Request message")
 			response, err := stream.Recv()
 			if err != nil {
-				logger.AppLog.Println("Response from server: error ", err)
+				logger.AppLog.Println("response from server: error ", err)
 				b.state = false
 			} else {
-				logger.AppLog.Printf("Init Response from Server %s server: %s\n", response.AmfId, response.VerboseMsg)
+				logger.AppLog.Printf("init Response from Server %s server: %s\n", response.AmfId, response.VerboseMsg)
 				b.state = true
 			}
 			return true
 		})
 		break
 	}
-	if b.state == true {
+	if b.state {
 		go b.connectionOnState()
 		go b.readFromServer()
 	}
@@ -81,19 +82,19 @@ func (b *GrpcServer) readFromServer() {
 	for {
 		response, err := b.stream.Recv()
 		if err != nil {
-			logger.GrpcLog.Printf("Error in Recv %v, Stop listening for this server %v ", err, b.address)
+			logger.GrpcLog.Printf("error in Recv %v, Stop listening for this server %v", err, b.address)
 			deleteBackendNF(b)
 			return
 		} else {
 			if response.Msgtype == gClient.MsgType_INIT_MSG {
-				logger.GrpcLog.Printf("Init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
+				logger.GrpcLog.Printf("init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
 			} else if response.Msgtype == gClient.MsgType_REDIRECT_MSG {
 				var found bool
 				ctx := context.Sctplb_Self()
 				for _, instance := range ctx.Backends {
 					b1 := instance.(*GrpcServer)
 					if b1.address == response.RedirectId {
-						if b1.state == false {
+						if !b1.state {
 							logger.GrpcLog.Printf("backend state is not in READY state, so not forwarding redirected Msg")
 						} else {
 							t := gClient.SctplbMessage{}
@@ -119,13 +120,13 @@ func (b *GrpcServer) readFromServer() {
 				var ran *context.Ran
 				// fetch ran connection based on GnbId
 				if response.GnbId == "" {
-					logger.RanLog.Printf("Received null GnbId from backend NF")
+					logger.RanLog.Printf("received null GnbId from backend NF")
 				} else if response.GnbIpAddr != "" {
 					// GnbId may present NGSetupreponse/failure receives from NF
 					ran, _ = context.Sctplb_Self().RanFindByGnbIp(response.GnbIpAddr)
 					if ran != nil && response.GnbId != "" {
 						ran.SetRanId(response.GnbId)
-						logger.RanLog.Printf("Received GnbId: %v for GNbIpAddress: %v from NF", response.GnbId, response.GnbIpAddr)
+						logger.RanLog.Printf("received GnbId: %v for GNbIpAddress: %v from NF", response.GnbId, response.GnbIpAddr)
 					}
 				} else if response.GnbId != "" {
 					ran, _ = context.Sctplb_Self().RanFindByGnbId(response.GnbId)
@@ -136,7 +137,7 @@ func (b *GrpcServer) readFromServer() {
 						logger.RanLog.Printf("err %+v", err)
 					}
 				} else {
-					logger.RanLog.Printf("Couldn't fetch sctp connection with GnbId: %v", response.GnbId)
+					logger.RanLog.Printf("couldn't fetch sctp connection with GnbId: %v", response.GnbId)
 				}
 			}
 		}

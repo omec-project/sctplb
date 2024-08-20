@@ -67,7 +67,7 @@ func (b BackendSvc) DispatchAddServer() {
 								break
 							}
 						}
-						if found == true {
+						if found {
 							continue
 						}
 						logger.DiscoveryLog.Infoln("New Server found IPv4: ", ipv4.String())
