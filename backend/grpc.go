@@ -20,13 +20,13 @@ import (
 func (b *GrpcServer) ConnectToServer(port int) {
 	target := fmt.Sprintf("%s:%d", b.address, port)
 
-	fmt.Println("Connecting to target ", target)
+	logger.AppLog.Infoln("connecting to target", target)
 
 	var err error
 	b.conn, err = grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	if err != nil {
-		fmt.Println("did not connect: ", err)
+		logger.AppLog.Errorln("did not connect:", err)
 		deleteBackendNF(b)
 		return
 	}
@@ -35,7 +35,7 @@ func (b *GrpcServer) ConnectToServer(port int) {
 
 	stream, err := b.gc.HandleMessage(ctxt.Background())
 	if err != nil {
-		logger.AppLog.Println("openn stream error ", err)
+		logger.AppLog.Errorw("open stream error", err)
 		deleteBackendNF(b)
 		return
 	}
@@ -53,19 +53,19 @@ func (b *GrpcServer) ConnectToServer(port int) {
 			if candidate.RanId != nil {
 				req.GnbId = *candidate.RanId
 			} else {
-				logger.AppLog.Printf("ran connection %v is exist without GnbId, so not sending this ran details to NF\n",
+				logger.AppLog.Infof("ran connection %v is exist without GnbId, so not sending this ran details to NF",
 					candidate.GnbIp)
 			}
 			if err := stream.Send(&req); err != nil {
-				logger.AppLog.Println("can not send: ", err)
+				logger.AppLog.Warnln("can not send:", err)
 			}
-			logger.AppLog.Println("send Request message")
+			logger.AppLog.Infoln("send Request message")
 			response, err := stream.Recv()
 			if err != nil {
-				logger.AppLog.Println("response from server: error ", err)
+				logger.AppLog.Errorln("response from server: error", err)
 				b.state = false
 			} else {
-				logger.AppLog.Printf("init Response from Server %s server: %s\n", response.AmfId, response.VerboseMsg)
+				logger.AppLog.Infof("init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
 				b.state = true
 			}
 			return true
@@ -82,12 +82,12 @@ func (b *GrpcServer) readFromServer() {
 	for {
 		response, err := b.stream.Recv()
 		if err != nil {
-			logger.GrpcLog.Printf("error in Recv %v, Stop listening for this server %v", err, b.address)
+			logger.GrpcLog.Errorf("error in Recv %v, Stop listening for this server %v", err, b.address)
 			deleteBackendNF(b)
 			return
 		} else {
 			if response.Msgtype == gClient.MsgType_INIT_MSG {
-				logger.GrpcLog.Printf("init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
+				logger.GrpcLog.Infof("init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
 			} else if response.Msgtype == gClient.MsgType_REDIRECT_MSG {
 				var found bool
 				ctx := context.Sctplb_Self()
@@ -95,7 +95,7 @@ func (b *GrpcServer) readFromServer() {
 					b1 := instance.(*GrpcServer)
 					if b1.address == response.RedirectId {
 						if !b1.state {
-							logger.GrpcLog.Printf("backend state is not in READY state, so not forwarding redirected Msg")
+							logger.GrpcLog.Infoln("backend state is not in READY state, so not forwarding redirected Msg")
 						} else {
 							t := gClient.SctplbMessage{}
 							t.VerboseMsg = "Hello From gNB Message !"
@@ -105,28 +105,28 @@ func (b *GrpcServer) readFromServer() {
 							t.GnbId = response.GnbId
 							err := b1.stream.Send(&t)
 							if err != nil {
-								logger.GrpcLog.Printf("error forwarding msg")
+								logger.GrpcLog.Infoln("error forwarding msg")
 							}
-							logger.GrpcLog.Printf("successfully forwarded msg to correct AMF")
+							logger.GrpcLog.Infoln("successfully forwarded msg to correct AMF")
 							found = true
 						}
 						break
 					}
 				}
 				if !found {
-					logger.GrpcLog.Printf("dropping redirected message as backend ip [%v] is not exist", response.RedirectId)
+					logger.GrpcLog.Infof("dropping redirected message as backend ip [%v] is not exist", response.RedirectId)
 				}
 			} else {
 				var ran *context.Ran
 				// fetch ran connection based on GnbId
 				if response.GnbId == "" {
-					logger.RanLog.Printf("received null GnbId from backend NF")
+					logger.RanLog.Infoln("received null GnbId from backend NF")
 				} else if response.GnbIpAddr != "" {
 					// GnbId may present NGSetupreponse/failure receives from NF
 					ran, _ = context.Sctplb_Self().RanFindByGnbIp(response.GnbIpAddr)
 					if ran != nil && response.GnbId != "" {
 						ran.SetRanId(response.GnbId)
-						logger.RanLog.Printf("received GnbId: %v for GNbIpAddress: %v from NF", response.GnbId, response.GnbIpAddr)
+						logger.RanLog.Infof("received GnbId: %v for GNbIpAddress: %v from NF", response.GnbId, response.GnbIpAddr)
 					}
 				} else if response.GnbId != "" {
 					ran, _ = context.Sctplb_Self().RanFindByGnbId(response.GnbId)
@@ -134,10 +134,10 @@ func (b *GrpcServer) readFromServer() {
 				if ran != nil {
 					_, err := ran.Conn.Write(response.Msg)
 					if err != nil {
-						logger.RanLog.Printf("err %+v", err)
+						logger.RanLog.Infof("err %+v", err)
 					}
 				} else {
-					logger.RanLog.Printf("couldn't fetch sctp connection with GnbId: %v", response.GnbId)
+					logger.RanLog.Infof("couldn't fetch sctp connection with GnbId: %v", response.GnbId)
 				}
 			}
 		}
