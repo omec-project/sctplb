@@ -5,21 +5,19 @@
 package logger
 
 import (
-	"time"
-
-	formatter "github.com/antonfisher/nested-logrus-formatter"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
-	logh         *logrus.Logger
-	CfgLog       *logrus.Entry
-	AppLog       *logrus.Entry
-	SctpLog      *logrus.Entry
-	GrpcLog      *logrus.Entry
-	DispatchLog  *logrus.Entry
-	DiscoveryLog *logrus.Entry
-	RanLog       *logrus.Entry
+	logh         *zap.Logger
+	CfgLog       *zap.SugaredLogger
+	AppLog       *zap.SugaredLogger
+	SctpLog      *zap.SugaredLogger
+	GrpcLog      *zap.SugaredLogger
+	DispatchLog  *zap.SugaredLogger
+	DiscoveryLog *zap.SugaredLogger
+	RanLog       *zap.SugaredLogger
 )
 
 const (
@@ -27,30 +25,45 @@ const (
 )
 
 func init() {
-	logh = logrus.New()
-	logh.SetReportCaller(false)
-
-	logh.Formatter = &formatter.Formatter{
-		TimestampFormat: time.RFC3339,
-		TrimMessages:    true,
-		NoFieldsSpace:   true,
-		HideKeys:        true,
-		FieldsOrder:     []string{"component", "category", FieldRanAddr},
+	config := zap.Config{
+		Level:            zap.NewAtomicLevelAt(zap.InfoLevel),
+		Development:      false,
+		Encoding:         "console",
+		EncoderConfig:    zap.NewProductionEncoderConfig(),
+		OutputPaths:      []string{"stdout"},
+		ErrorOutputPaths: []string{"stderr"},
 	}
 
-	CfgLog = logh.WithFields(logrus.Fields{"component": "SCTP_LB", "category": "CFG"})
-	AppLog = logh.WithFields(logrus.Fields{"component": "SCTP_LB", "category": "GRPC"})
-	SctpLog = logh.WithFields(logrus.Fields{"component": "SCTP"})
-	GrpcLog = logh.WithFields(logrus.Fields{"component": "Grpc"})
-	DispatchLog = logh.WithFields(logrus.Fields{"component": "DISPATCH"})
-	DiscoveryLog = logh.WithFields(logrus.Fields{"component": "discovery"})
-	RanLog = logh.WithFields(logrus.Fields{"component": "RAN"})
+	config.EncoderConfig.TimeKey = "timestamp"
+	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	config.EncoderConfig.MessageKey = "message"
+	config.EncoderConfig.CallerKey = "caller"
+	config.EncoderConfig.LevelKey = "level"
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+
+	var err error
+	logh, err = config.Build()
+	if err != nil {
+		panic(err)
+	}
+
+	CfgLog = logh.Sugar().With("component", "SCTP_LB", "category", "CFG")
+	AppLog = logh.Sugar().With("component", "SCTP_LB", "category", "GRPC")
+	SctpLog = logh.Sugar().With("component", "SCTP")
+	GrpcLog = logh.Sugar().With("component", "Grpc")
+	DispatchLog = logh.Sugar().With("component", "DISPATCH")
+	DiscoveryLog = logh.Sugar().With("component", "discovery")
+	RanLog = logh.Sugar().With("component", "RAN")
 }
 
-func SetLogLevel(level logrus.Level) {
-	logh.SetLevel(level)
+func SetLogLevel(level zapcore.Level) {
+	logh = logh.WithOptions(zap.IncreaseLevel(level))
 }
 
 func SetReportCaller(set bool) {
-	logh.SetReportCaller(set)
+	if set {
+		logh = logh.WithOptions(zap.AddCaller())
+	} else {
+		logh = logh.WithOptions(zap.WithCaller(false))
+	}
 }

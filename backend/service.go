@@ -1,4 +1,5 @@
 // SPDX-FileCopyrightText: 2022 Open Networking Foundation <info@opennetworking.org>
+// SPDX-FileCopyrightText: 2024 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0
 
@@ -6,7 +7,6 @@ package backend
 
 import (
 	"encoding/hex"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -39,7 +39,7 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 }
 
 func ServiceRun(addresses []string, port int) {
-	fmt.Println("service Run is called")
+	logger.AppLog.Infoln("service Run is called")
 	handler := SCTPHandler{
 		HandleMessage: dispatchMessage,
 	}
@@ -48,9 +48,9 @@ func ServiceRun(addresses []string, port int) {
 
 	for _, addr := range addresses {
 		if netAddr, err := net.ResolveIPAddr("ip", addr); err != nil {
-			logger.SctpLog.Errorf("error resolving address '%s': %v\n", addr, err)
+			logger.SctpLog.Errorf("error resolving address '%s': %v", addr, err)
 		} else {
-			logger.SctpLog.Debugf("resolved address '%s' to %s\n", addr, netAddr)
+			logger.SctpLog.Debugf("resolved address '%s' to %s", addr, netAddr)
 			ips = append(ips, *netAddr)
 		}
 	}
@@ -71,7 +71,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler SCTPHandler) {
 		sctpListener = listener
 	}
 
-	logger.SctpLog.Infof("listen on %s", sctpListener.Addr())
+	logger.SctpLog.Infoln("listen on", sctpListener.Addr())
 
 	for {
 		newConn, err := sctpListener.AcceptSCTP()
@@ -116,7 +116,7 @@ func listenAndServe(addr *sctp.SCTPAddr, handler SCTPHandler) {
 			}
 			continue
 		} else {
-			logger.SctpLog.Debugln("Subscribe SCTP event[DATA_IO, SHUTDOWN_EVENT, ASSOCIATION_CHANGE]")
+			logger.SctpLog.Debugln("subscribe SCTP event[DATA_IO, SHUTDOWN_EVENT, ASSOCIATION_CHANGE]")
 		}
 
 		if err := newConn.SetReadBuffer(int(readBufSize)); err != nil {
@@ -178,7 +178,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 					logger.SctpLog.Debugf("SCTPRead: %+v", err)
 					continue
 				default:
-					logger.SctpLog.Errorf("handle connection[addr: %+v] error: %+v", conn.RemoteAddr(), err)
+					logger.SctpLog.Errorf("handle connection [addr: %+v] error: %+v", conn.RemoteAddr(), err)
 					GnbConnChan <- false
 					return
 				}
@@ -187,10 +187,10 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 			if notification != nil {
 				p, ok := connections.Load(conn)
 				if !ok {
-					logger.SctpLog.Infof("notification for unknown connection")
+					logger.SctpLog.Warnln("notification for unknown connection")
 				} else {
 					peer := p.(*SctpConnections)
-					logger.SctpLog.Warnf("handle SCTP Notification[addr: %+v], peer %v ", conn.RemoteAddr(), peer)
+					logger.SctpLog.Infof("handle SCTP Notification peer %v ", peer.address)
 					GnbConnChan <- false
 				}
 			} else {
@@ -199,8 +199,8 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 					continue
 				}
 
-				logger.SctpLog.Tracef("read %d bytes", n)
-				logger.SctpLog.Tracef("packet content:\n%+v", hex.Dump(buf[:n]))
+				logger.SctpLog.Debugf("read %d bytes", n)
+				logger.SctpLog.Debugf("packet content: %+v", hex.Dump(buf[:n]))
 
 				handler.HandleMessage(conn, buf[:n])
 			}
@@ -208,7 +208,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 	}()
 
 	for x := range GnbConnChan {
-		logger.SctpLog.Errorln("closing gnb Connection  ", x)
+		logger.SctpLog.Warnln("closing gnb Connection:", x)
 		buf := make([]byte, bufsize)
 		handler.HandleMessage(conn, buf[:0])
 		return

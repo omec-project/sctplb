@@ -8,12 +8,12 @@
 package context
 
 import (
-	"fmt"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/omec-project/sctplb/logger"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 var sctplbContext = SctplbContext{}
@@ -35,7 +35,7 @@ type Ran struct {
 	/* socket Connect*/
 	Conn net.Conn `json:"-"`
 
-	Log *logrus.Entry `json:"-"`
+	Log *zap.SugaredLogger `json:"-"`
 }
 
 func (ran *Ran) Remove() {
@@ -49,7 +49,11 @@ func (ran *Ran) SetRanId(gnbId string) {
 
 func (ran *Ran) RanID() string {
 	if ran.RanId != nil {
-		return fmt.Sprintf("<Mcc:Mnc:GNbID %s>", *ran.RanId)
+		var builder strings.Builder
+		builder.WriteString("<Mcc:Mnc:GNbID ")
+		builder.WriteString(*ran.RanId)
+		builder.WriteString(">")
+		return builder.String()
 	}
 	return ""
 }
@@ -58,7 +62,7 @@ func (context *SctplbContext) NewRan(conn net.Conn) *Ran {
 	ran := Ran{}
 	ran.Conn = conn
 	ran.GnbIp = conn.RemoteAddr().String()
-	ran.Log = logger.RanLog.WithField(logger.FieldRanAddr, conn.RemoteAddr().String())
+	ran.Log = logger.RanLog.Desugar().Sugar().With(logger.FieldRanAddr, conn.RemoteAddr().String())
 	context.RanPool.Store(conn, &ran)
 	return &ran
 }
