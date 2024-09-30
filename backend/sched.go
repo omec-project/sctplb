@@ -117,7 +117,7 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 		return
 	} else {
 		peer = p.(*SctpConnections)
-		logger.SctpLog.Warnf("handle SCTP Notification from peer %v", peer.address)
+		logger.SctpLog.Infoln("handle SCTP Notification from peer", peer.address)
 	}
 	ctx := context.Sctplb_Self()
 	ctx.Lock()

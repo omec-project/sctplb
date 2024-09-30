@@ -208,7 +208,7 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 	}()
 
 	for x := range GnbConnChan {
-		logger.SctpLog.Warnln("closing gnb Connection:", x)
+		logger.SctpLog.Infoln("closing gnb Connection:", x)
 		buf := make([]byte, bufsize)
 		handler.HandleMessage(conn, buf[:0])
 		return
