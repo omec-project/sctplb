@@ -39,7 +39,7 @@ type Ran struct {
 }
 
 func (ran *Ran) Remove() {
-	ran.Log.Infof("Remove RAN Context[ID: %+v]", ran.RanID())
+	ran.Log.Infof("remove RAN context[ID: %+v]", ran.RanID())
 	sctplbContext.DeleteRan(ran.Conn)
 }
 
