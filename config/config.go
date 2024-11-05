@@ -38,21 +38,21 @@ type Configuration struct {
 }
 
 func InitConfigFactory(f string) (Config, error) {
-	var SimappConfig Config
+	var sctplbConfig Config
 	if content, err := os.ReadFile(f); err != nil {
 		logger.CfgLog.Errorf("readfile failed called %v", err)
-		return SimappConfig, err
+		return sctplbConfig, err
 	} else {
-		SimappConfig = Config{}
+		sctplbConfig = Config{}
 
-		if yamlErr := yaml.Unmarshal(content, &SimappConfig); yamlErr != nil {
+		if yamlErr := yaml.Unmarshal(content, &sctplbConfig); yamlErr != nil {
 			logger.CfgLog.Errorf("yaml parsing failed %v", yamlErr)
-			return SimappConfig, yamlErr
+			return sctplbConfig, yamlErr
 		}
 	}
-	if SimappConfig.Configuration == nil {
-		logger.CfgLog.Errorf("configuration parsing failed %v", SimappConfig.Configuration)
-		return SimappConfig, errors.New("configuration parsing failed")
+	if sctplbConfig.Configuration == nil {
+		logger.CfgLog.Errorf("configuration parsing failed %v", sctplbConfig.Configuration)
+		return sctplbConfig, errors.New("configuration parsing failed")
 	}
-	return SimappConfig, nil
+	return sctplbConfig, nil
 }
