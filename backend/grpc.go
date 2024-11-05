@@ -24,7 +24,6 @@ func (b *GrpcServer) ConnectToServer(port int) {
 
 	var err error
 	b.conn, err = grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
 	if err != nil {
 		logger.AppLog.Errorln("did not connect:", err)
 		deleteBackendNF(b)
