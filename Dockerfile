@@ -6,15 +6,14 @@
 
 FROM golang:1.23.2-bookworm AS builder
 
-LABEL maintainer="Aether SD-Core <dev@lists.aetherproject.org>"
-
 WORKDIR $GOPATH/src/sctplb
 COPY . .
 RUN CGO_ENABLED=0 go install
 
 FROM alpine:3.20 AS sctplb
 
-LABEL description="ONF open source 5G Core Network" \
+LABEL maintainer="Aether SD-Core <dev@lists.aetherproject.org>" \
+    description="ONF open source 5G Core Network" \
     version="Stage 3"
 
 ARG DEBUG_TOOLS
@@ -24,7 +23,4 @@ RUN if [ "$DEBUG_TOOLS" = "true" ]; then \
         apk update && apk add --no-cache -U vim strace net-tools curl netcat-openbsd bind-tools bash; \
         fi
 
-WORKDIR /sdcore
-RUN mkdir -p bin/
-COPY --from=builder /go/bin/* /sdcore/bin/
-WORKDIR /sdcore
+COPY --from=builder /go/bin/* /usr/local/bin/.
