@@ -5,7 +5,7 @@ go 1.23
 require (
 	git.cs.nctu.edu.tw/calee/sctp v1.1.0
 	github.com/omec-project/ngap v1.3.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/urfave/cli/v2 v2.27.5
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.68.0
