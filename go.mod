@@ -1,6 +1,7 @@
 module github.com/omec-project/sctplb
 
 go 1.24.0
+
 require (
 	git.cs.nctu.edu.tw/calee/sctp v1.1.0
 	github.com/omec-project/ngap v1.3.2
