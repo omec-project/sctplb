@@ -1,7 +1,6 @@
 module github.com/omec-project/sctplb
 
 go 1.24.0
-
 require (
 	git.cs.nctu.edu.tw/calee/sctp v1.1.0
 	github.com/omec-project/ngap v1.3.2
@@ -9,7 +8,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.6
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.71.0
-	google.golang.org/protobuf v1.36.5
+	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v2 v2.4.0
 )
 
