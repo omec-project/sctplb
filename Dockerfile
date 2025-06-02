@@ -10,7 +10,7 @@ WORKDIR $GOPATH/src/sctplb
 COPY . .
 RUN CGO_ENABLED=0 go install
 
-FROM alpine:3.21 AS sctplb
+FROM alpine:3.22 AS sctplb
 
 LABEL maintainer="Aether SD-Core <dev@lists.aetherproject.org>" \
     description="ONF open source 5G Core Network" \
