@@ -5,17 +5,18 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
 	"github.com/omec-project/sctplb/backend"
 	"github.com/omec-project/sctplb/config"
 	"github.com/omec-project/sctplb/logger"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 func main() {
-	app := cli.NewApp()
+	app := &cli.Command{}
 	app.Name = "sctplb"
 	logger.AppLog.Infoln(app.Name)
 	app.Usage = "SCTP Load Balancer"
@@ -28,12 +29,12 @@ func main() {
 		},
 	}
 	app.Action = action
-	if err := app.Run(os.Args); err != nil {
+	if err := app.Run(context.Background(), os.Args); err != nil {
 		logger.AppLog.Fatalf("SCTPLB run error: %v", err)
 	}
 }
 
-func action(c *cli.Context) error {
+func action(ctx context.Context, c *cli.Command) error {
 	logger.AppLog.Infoln("sctp-lb started")
 	cfg := c.String("cfg")
 	absPath, err := filepath.Abs(cfg)
