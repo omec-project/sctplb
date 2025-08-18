@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-FROM golang:1.24.6-bookworm AS builder
+FROM golang:1.25.0-bookworm AS builder
 
 WORKDIR $GOPATH/src/sctplb
 COPY . .
