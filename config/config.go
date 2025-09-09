@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/omec-project/sctplb/logger"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v4"
 )
 
 type Config struct {
