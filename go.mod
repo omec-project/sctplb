@@ -8,9 +8,9 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/urfave/cli/v3 v3.4.1
 	go.uber.org/zap v1.27.0
+	go.yaml.in/yaml/v4 v4.0.0-rc.2
 	google.golang.org/grpc v1.75.0
 	google.golang.org/protobuf v1.36.8
-	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
