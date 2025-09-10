@@ -43,9 +43,9 @@ func (b *GrpcServer) ConnectToServer(port int) {
 	b.state = true
 	for {
 		// INIT message to new NF instance
-		context.Sctplb_Self().RanPool.Range(func(key, value interface{}) bool {
+		context.Sctplb_Self().RanPool.Range(func(key, value any) bool {
 			req := gClient.SctplbMessage{}
-			req.VerboseMsg = "Hello From SCTP LB !"
+			req.VerboseMsg = "Hello From SCTP LB!"
 			req.Msgtype = gClient.MsgType_INIT_MSG
 			req.SctplbId = os.Getenv("HOSTNAME")
 			candidate := value.(*context.Ran)
