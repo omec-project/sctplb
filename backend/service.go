@@ -8,6 +8,7 @@ package backend
 import (
 	"encoding/hex"
 	"io"
+	"math/bits"
 	"net"
 	"sync"
 	"syscall"
@@ -194,8 +195,11 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 					GnbConnChan <- false
 				}
 			} else {
-				if info == nil || info.PPID != ngap.PPID {
-					logger.SctpLog.Warnln("received SCTP PPID != 60, discard this packet")
+				// The previous SCTP library expected PPID in network byte order (big-endian),
+				// while the new library expects host byte order. Using bits.ReverseBytes32
+				// ensures the PPID is interpreted correctly by the new SCTP implementation.
+				if info == nil || info.PPID != bits.ReverseBytes32(ngap.PPID) {
+					logger.SctpLog.Warnf("received SCTP PPID != %d, discard this packet", ngap.PPID)
 					continue
 				}
 
