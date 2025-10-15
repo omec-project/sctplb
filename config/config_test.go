@@ -5,9 +5,8 @@
 package config
 
 import (
+	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func Test_InitConfigFactory(t *testing.T) {
@@ -32,8 +31,13 @@ func Test_InitConfigFactory(t *testing.T) {
 
 	t.Run("", func(t *testing.T) {
 		cfg, err := InitConfigFactory("./sctplb.yaml")
-		require.NoError(t, err)
-		require.Equal(t, xcfg, cfg)
+		if err != nil {
+			t.Fatalf("InitConfigFactory failed: %v", err)
+		}
+
+		if !reflect.DeepEqual(cfg, xcfg) {
+			t.Errorf("Config mismatch. got = %+v, want = %+v", cfg, xcfg)
+		}
 	},
 	)
 }

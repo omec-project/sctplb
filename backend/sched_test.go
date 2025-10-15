@@ -5,10 +5,10 @@
 package backend
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/omec-project/sctplb/context"
-	"github.com/stretchr/testify/require"
 )
 
 func initBackendNF() {
@@ -73,7 +73,10 @@ func Test_RoundRobin(t *testing.T) {
 		t.Run(
 			tt.name, func(t *testing.T) {
 				instance := RoundRobin()
-				require.Equal(t, instance.(*GrpcServer), tt.want)
+				got := instance.(*GrpcServer)
+				if got != tt.want {
+					t.Errorf("RoundRobin() result mismatch. got = %+v, want = %+v", got, tt.want)
+				}
 			},
 		)
 	}
@@ -98,10 +101,15 @@ func Test_Iterate(t *testing.T) {
 			tt.name, func(t *testing.T) {
 				var count int
 				ctx.Iterate(func(k int, v context.NF) {
-					require.Equal(t, tt.want[k], v)
+					if !reflect.DeepEqual(v, tt.want[k]) {
+						t.Errorf("NF at index %d mismatch. got = %+v, want = %+v", k, v, tt.want[k])
+					}
 					count++
 				})
-				require.Equal(t, ctx.NFLength(), count)
+
+				if ctx.NFLength() != count {
+					t.Errorf("NFLength mismatch. got = %d, want = %d", ctx.NFLength(), count)
+				}
 			},
 		)
 	}
