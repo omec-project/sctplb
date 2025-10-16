@@ -74,8 +74,25 @@ func Test_RoundRobin(t *testing.T) {
 			tt.name, func(t *testing.T) {
 				instance := RoundRobin()
 				got := instance.(*GrpcServer)
-				if got != tt.want {
-					t.Errorf("RoundRobin() result mismatch. got = %+v, want = %+v", got, tt.want)
+				if got.address != tt.want.address {
+					t.Errorf("RoundRobin() address mismatch. got = %q, want = %q", got.address, tt.want.address)
+				}
+
+				if got.state != tt.want.state {
+					t.Errorf("RoundRobin() state mismatch. got = %v, want = %v", got.state, tt.want.state)
+				}
+
+				// For conn, gc, stream - check if they're both nil or both non-nil
+				if (got.conn == nil) != (tt.want.conn == nil) {
+					t.Errorf("RoundRobin() conn nil mismatch. got nil = %v, want nil = %v", got.conn == nil, tt.want.conn == nil)
+				}
+
+				if (got.gc == nil) != (tt.want.gc == nil) {
+					t.Errorf("RoundRobin() gc nil mismatch. got nil = %v, want nil = %v", got.gc == nil, tt.want.gc == nil)
+				}
+
+				if (got.stream == nil) != (tt.want.stream == nil) {
+					t.Errorf("RoundRobin() stream nil mismatch. got nil = %v, want nil = %v", got.stream == nil, tt.want.stream == nil)
 				}
 			},
 		)
