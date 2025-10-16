@@ -5,10 +5,10 @@
 package backend
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/omec-project/sctplb/context"
-	"github.com/stretchr/testify/require"
 )
 
 func initBackendNF() {
@@ -73,7 +73,27 @@ func Test_RoundRobin(t *testing.T) {
 		t.Run(
 			tt.name, func(t *testing.T) {
 				instance := RoundRobin()
-				require.Equal(t, instance.(*GrpcServer), tt.want)
+				got := instance.(*GrpcServer)
+				if got.address != tt.want.address {
+					t.Errorf("RoundRobin() address mismatch. got = %q, want = %q", got.address, tt.want.address)
+				}
+
+				if got.state != tt.want.state {
+					t.Errorf("RoundRobin() state mismatch. got = %v, want = %v", got.state, tt.want.state)
+				}
+
+				// For conn, gc, stream - check if they're both nil or both non-nil
+				if (got.conn == nil) != (tt.want.conn == nil) {
+					t.Errorf("RoundRobin() conn nil mismatch. got nil = %v, want nil = %v", got.conn == nil, tt.want.conn == nil)
+				}
+
+				if (got.gc == nil) != (tt.want.gc == nil) {
+					t.Errorf("RoundRobin() gc nil mismatch. got nil = %v, want nil = %v", got.gc == nil, tt.want.gc == nil)
+				}
+
+				if (got.stream == nil) != (tt.want.stream == nil) {
+					t.Errorf("RoundRobin() stream nil mismatch. got nil = %v, want nil = %v", got.stream == nil, tt.want.stream == nil)
+				}
 			},
 		)
 	}
@@ -98,10 +118,15 @@ func Test_Iterate(t *testing.T) {
 			tt.name, func(t *testing.T) {
 				var count int
 				ctx.Iterate(func(k int, v context.NF) {
-					require.Equal(t, tt.want[k], v)
+					if !reflect.DeepEqual(v, tt.want[k]) {
+						t.Errorf("NF at index %d mismatch. got = %+v, want = %+v", k, v, tt.want[k])
+					}
 					count++
 				})
-				require.Equal(t, ctx.NFLength(), count)
+
+				if ctx.NFLength() != count {
+					t.Errorf("NFLength mismatch. got = %d, want = %d", ctx.NFLength(), count)
+				}
 			},
 		)
 	}
