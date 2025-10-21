@@ -3,7 +3,7 @@ module github.com/omec-project/sctplb
 go 1.24.0
 
 require (
-	git.cs.nctu.edu.tw/calee/sctp v1.1.0
+	github.com/ishidawataru/sctp v0.0.0-20250829011129-4b890084db30
 	github.com/omec-project/ngap v1.6.1
 	github.com/urfave/cli/v3 v3.4.1
 	go.uber.org/zap v1.27.0
