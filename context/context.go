@@ -77,7 +77,7 @@ func (context *SctplbContext) RanFindByConn(conn net.Conn) (*Ran, bool) {
 
 // get Ran using RanId
 func (context *SctplbContext) RanFindByGnbId(gnbId string) (ran *Ran, ok bool) {
-	context.RanPool.Range(func(key, value interface{}) bool {
+	context.RanPool.Range(func(key, value any) bool {
 		candidate := value.(*Ran)
 		if ok = (*candidate.RanId == gnbId); ok {
 			ran = candidate
@@ -90,7 +90,7 @@ func (context *SctplbContext) RanFindByGnbId(gnbId string) (ran *Ran, ok bool) {
 
 // get Ran using GnbIp
 func (context *SctplbContext) RanFindByGnbIp(gnbIp string) (ran *Ran, ok bool) {
-	context.RanPool.Range(func(key, value interface{}) bool {
+	context.RanPool.Range(func(key, value any) bool {
 		candidate := value.(*Ran)
 		if ok = (candidate.GnbIp == gnbIp); ok {
 			ran = candidate

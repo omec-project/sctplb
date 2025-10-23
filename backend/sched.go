@@ -6,9 +6,11 @@
 package backend
 
 import (
+	"encoding/binary"
 	"net"
 	"time"
 
+	"github.com/ishidawataru/sctp"
 	"github.com/omec-project/sctplb/context"
 	"github.com/omec-project/sctplb/logger"
 )
@@ -102,7 +104,7 @@ func deleteBackendNF(b context.NF) {
 	}
 }
 
-func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
+func dispatchMessage(conn *sctp.SCTPConn, msg []byte) {
 	// add this message for one of the client
 	// select server who can handle this message.. round robin
 	// add message in the server queue
@@ -113,12 +115,12 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 	var peer *SctpConnections
 	p, ok := connections.Load(conn)
 	if !ok {
-		logger.SctpLog.Infoln("notification for unknown connection")
+		logger.SctpLog.Infoln("SCTP message for unknown connection")
 		return
-	} else {
-		peer = p.(*SctpConnections)
-		logger.SctpLog.Infoln("handle SCTP Notification from peer", peer.address)
 	}
+	peer = p.(*SctpConnections)
+	logger.SctpLog.Infoln("handle SCTP message from peer", peer.address)
+
 	ctx := context.Sctplb_Self()
 	ctx.Lock()
 	defer ctx.Unlock()
@@ -144,7 +146,6 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 	if ran == nil {
 		ran = context.Sctplb_Self().NewRan(conn)
 	}
-	logger.SctpLog.Infoln("message received from remoteAddr", conn.RemoteAddr().String())
 	if ctx.NFLength() == 0 {
 		logger.AppLog.Errorln("no backend available")
 		return
@@ -159,5 +160,128 @@ func dispatchMessage(conn net.Conn, msg []byte) { //*gClient.Message) {
 			}
 			break
 		}
+	}
+}
+
+func handleNotification(conn *sctp.SCTPConn, notificationData []byte) {
+	if conn == nil {
+		logger.SctpLog.Infof("handle global SCTP notification")
+		handleGlobalSCTPNotification(notificationData)
+		return
+	}
+
+	sctplbSelf := context.Sctplb_Self()
+	logger.SctpLog.Infof("handle SCTP Notification[addr: %+v]", conn.RemoteAddr())
+
+	ran, ok := sctplbSelf.RanFindByConn(conn)
+	if !ok {
+		logger.SctpLog.Warnf("RAN context has been removed[addr: %+v]", conn.RemoteAddr())
+		return
+	}
+
+	// Clean up stale connections in SctplbRanPool
+	sctplbSelf.RanPool.Range(func(key, value any) bool {
+		amfRan := value.(*context.Ran)
+		if amfRan.Conn == nil {
+			amfRan.Remove()
+			ran.Log.Infoln("removed RAN with nil connection from AmfRan pool")
+		}
+		return true
+	})
+
+	// NotificationHeader = Type (2 bytes) + Flags (2 bytes) + Length (4 bytes) = 8 bytes
+	if len(notificationData) < 8 {
+		ran.Log.Warnf("notification data too short: %d bytes", len(notificationData))
+		return
+	}
+
+	// Parse notification header using LittleEndian (host byte order)
+	notificationType := sctp.SCTPNotificationType(binary.LittleEndian.Uint16(notificationData[0:2]))
+	notificationFlags := binary.LittleEndian.Uint16(notificationData[2:4])
+	notificationLength := binary.LittleEndian.Uint32(notificationData[4:8])
+
+	ran.Log.Debugf("processing notification - Type: %d, Flags: %d, Length: %d",
+		notificationType, notificationFlags, notificationLength)
+
+	// Validate notification length matches actual data
+	if uint32(len(notificationData)) < notificationLength {
+		ran.Log.Warnf("notification data length mismatch: got %d bytes, expected %d",
+			len(notificationData), notificationLength)
+		return
+	}
+
+	switch notificationType {
+	case sctp.SCTP_ASSOC_CHANGE:
+		ran.Log.Infoln("SCTP_ASSOC_CHANGE notification")
+		// SCTP Association Change Notification Structure:
+		// notificationData = Type (2 bytes) + Flags (2 bytes) + Length (4 bytes) +
+		// State (2 bytes) + Error (2 bytes) + outboundStreams (2 bytes) +
+		// InboundStreams (2 bytes) + AssocID (4 bytes) = 20 bytes
+		if len(notificationData) < 20 {
+			ran.Log.Warnf("SCTP_ASSOC_CHANGE notification data too short: got %d bytes, need minimum 20",
+				len(notificationData))
+			return
+		}
+		state := sctp.SCTPState(binary.LittleEndian.Uint16(notificationData[8:10]))
+		errorSctp := binary.LittleEndian.Uint16(notificationData[10:12])
+		outboundStreams := binary.LittleEndian.Uint16(notificationData[12:14])
+		inboundStreams := binary.LittleEndian.Uint16(notificationData[14:16])
+		assocID := binary.LittleEndian.Uint32(notificationData[16:20])
+
+		ran.Log.Debugf("association change - State: %v, Error: %d, Out: %d, In: %d, AssocID: %d",
+			state, errorSctp, outboundStreams, inboundStreams, assocID)
+
+		switch state {
+		case sctp.SCTP_COMM_LOST:
+			ran.Log.Infoln("SCTP state is SCTP_COMM_LOST, close the connection")
+			ran.Remove()
+		case sctp.SCTP_SHUTDOWN_COMP:
+			ran.Log.Infoln("SCTP state is SCTP_SHUTDOWN_COMP, close the connection")
+			ran.Remove()
+		case sctp.SCTP_COMM_UP:
+			ran.Log.Infoln("SCTP association is up")
+		case sctp.SCTP_RESTART:
+			ran.Log.Infoln("SCTP association restarted")
+		default:
+			ran.Log.Warnf("SCTP state[%d] is not handled", state)
+		}
+
+	case sctp.SCTP_SHUTDOWN_EVENT:
+		ran.Log.Infoln("SCTP_SHUTDOWN_EVENT notification, close the connection")
+		ran.Remove()
+
+	case sctp.SCTP_PEER_ADDR_CHANGE:
+		ran.Log.Infoln("SCTP_PEER_ADDR_CHANGE notification")
+
+	case sctp.SCTP_REMOTE_ERROR:
+		ran.Log.Warnln("SCTP_REMOTE_ERROR notification - peer reported error")
+
+	case sctp.SCTP_SEND_FAILED:
+		ran.Log.Warnln("SCTP_SEND_FAILED notification - message delivery failed")
+
+	default:
+		ran.Log.Warnf("unhandled notification type: %d", notificationType)
+	}
+}
+
+func handleGlobalSCTPNotification(notificationHeader []byte) {
+	// notificationHeader = Type (2 bytes) + Flags (2 bytes) + Length (4 bytes) = 8 bytes
+	if len(notificationHeader) < 8 {
+		logger.SctpLog.Warnf("global notification data too short: %d bytes", len(notificationHeader))
+		return
+	}
+
+	notificationType := sctp.SCTPNotificationType(binary.LittleEndian.Uint16(notificationHeader[0:2]))
+	logger.SctpLog.Debugf("handling global SCTP notification of type: %d", notificationType)
+
+	switch notificationType {
+	case sctp.SCTP_SHUTDOWN_EVENT:
+		logger.SctpLog.Warnln("global SCTP_SHUTDOWN_EVENT notification - listener shutting down")
+
+	case sctp.SCTP_ASSOC_CHANGE:
+		logger.SctpLog.Infoln("global SCTP_ASSOC_CHANGE notification")
+
+	default:
+		logger.SctpLog.Debugf("global notification type: %d", notificationType)
 	}
 }

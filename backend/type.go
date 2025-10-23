@@ -5,8 +5,7 @@
 package backend
 
 import (
-	"net"
-
+	"github.com/ishidawataru/sctp"
 	"github.com/omec-project/sctplb/config"
 	"github.com/omec-project/sctplb/context"
 	gClient "github.com/omec-project/sctplb/sdcoreAmfServer"
@@ -14,7 +13,7 @@ import (
 )
 
 type SctpConnections struct {
-	conn    net.Conn
+	conn    *sctp.SCTPConn
 	address string
 }
 

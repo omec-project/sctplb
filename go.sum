@@ -1,5 +1,3 @@
-git.cs.nctu.edu.tw/calee/sctp v1.1.0 h1:caiPJ0g2sH1QmDkC7x2yklKrc01Fuo1rqYW68Tq4mU0=
-git.cs.nctu.edu.tw/calee/sctp v1.1.0/go.mod h1:NeOuBXO1iJBtldmNhkfSH8yFbnxlhI8eEJdUd7DZvws=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=
@@ -12,6 +10,8 @@ github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/ishidawataru/sctp v0.0.0-20250829011129-4b890084db30 h1:SF8DGX8bGAXMAvxtJvFFy2KIAPwxIEDP3XpzZVhz0i4=
+github.com/ishidawataru/sctp v0.0.0-20250829011129-4b890084db30/go.mod h1:co9pwDoBCm1kGxawmb4sPq0cSIOOWNPT4KnHotMP1Zg=
 github.com/omec-project/ngap v1.6.1 h1:BegHQ0HdJbftEEr87hKFabLw8Lt2ES4xRFDbCpm/GYY=
 github.com/omec-project/ngap v1.6.1/go.mod h1:Mljr23g8A79HzpgbMw+/NzbIjnV0y+LRKXr4eZzgWJM=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
