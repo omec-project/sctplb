@@ -8,7 +8,7 @@ FROM golang:1.26.0-bookworm@sha256:eae3cdfa040d0786510a5959d36a836978724d03b34a1
 
 WORKDIR $GOPATH/src/sctplb
 COPY . .
-RUN CGO_ENABLED=0 go install
+RUN make all
 
 FROM alpine:3.23@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659 AS sctplb
 
