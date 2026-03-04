@@ -6,6 +6,7 @@
 package backend
 
 import (
+	stdctx "context"
 	"encoding/binary"
 	"net"
 	"time"
@@ -52,13 +53,14 @@ func (b BackendSvc) DispatchAddServer() {
 		for _, svc := range svcList {
 			for {
 				logger.DiscoveryLog.Debugln("discover Service", svc.Uri)
-				ips, err := net.LookupIP(svc.Uri)
+				ips, err := net.DefaultResolver.LookupIPAddr(stdctx.Background(), svc.Uri)
 				if err != nil {
 					logger.DiscoveryLog.Warnf("discover Service %s error %+v", svc.Uri, err)
 					time.Sleep(2 * time.Second)
 					continue
 				}
-				for _, ip := range ips {
+				for _, ipAddr := range ips {
+					ip := ipAddr.IP
 					logger.DiscoveryLog.Debugln("discover Service %s, ip %s", svc.Uri, ", ip", ip.String())
 					found := false
 					if ipv4 := ip.To4(); ipv4 != nil {
