@@ -29,11 +29,10 @@ const readBufSize uint32 = 8192
 var readTimeout syscall.Timeval = syscall.Timeval{Sec: 2, Usec: 0}
 
 var (
-	sctpListener   *sctp.SCTPListener
-	connections    sync.Map
-	shutdownCtx    context.Context
-	shutdownCancel context.CancelFunc
-	wg             sync.WaitGroup
+	sctpListener *sctp.SCTPListener
+	connections  sync.Map
+	shutdownCtx  = context.Background()
+	wg           sync.WaitGroup
 )
 
 var handler SCTPHandler
@@ -53,10 +52,6 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 		}
 		return nil
 	},
-}
-
-func init() {
-	shutdownCtx, shutdownCancel = context.WithCancel(context.Background())
 }
 
 func ServiceRun(addresses []string, port int) {
@@ -277,23 +272,4 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 			handler.HandleMessage(conn, buf[:n])
 		}
 	}
-}
-
-func Stop() {
-	logger.SctpLog.Info("initiating graceful shutdown")
-	shutdownCancel()
-
-	if sctpListener != nil {
-		sctpListener.Close()
-	}
-
-	connections.Range(func(key, value any) bool {
-		if conn, ok := key.(*sctp.SCTPConn); ok {
-			conn.Close()
-		}
-		return true
-	})
-
-	wg.Wait()
-	logger.SctpLog.Info("graceful shutdown completed")
 }
