@@ -37,4 +37,4 @@ RUN if [ "$DEBUG_TOOLS" = "true" ]; then \
         apk update && apk add --no-cache -U vim strace net-tools curl netcat-openbsd bind-tools bash; \
         fi
 
-COPY --from=builder /go/bin/* /usr/local/bin/.
+COPY --from=builder /go/src/sctplb/bin/* /usr/local/bin/.
