@@ -6,13 +6,16 @@ package sdcoreAmfServer;
 option go_package = "./sdcoreAmfServer";
 
 enum msgType {
-    UNKNOWN   = 0;
-    INIT_MSG  = 1;
-    GNB_MSG   = 2;
-    AMF_MSG   = 3;
+    UNKNOWN      = 0;
+    INIT_MSG     = 1;
+    GNB_MSG      = 2;
+    AMF_MSG      = 3;
     REDIRECT_MSG = 4;
-    GNB_DISC  = 5;
-    GNB_CONN  = 6;
+    GNB_DISC     = 5;
+    GNB_CONN     = 6;
+    N3IWF_MSG    = 7;
+    N3IWF_DISC   = 8;
+    N3IWF_CONN   = 9;
 }
 
 message SctplbMessage {
@@ -22,6 +25,7 @@ message SctplbMessage {
     string VerboseMsg   = 4;
     bytes Msg           = 5;
     string GnbId        = 6;
+    string N3iwfId      = 7;
 }
 
 message AmfMessage {
@@ -32,6 +36,7 @@ message AmfMessage {
    string GnbId        = 5;
    string VerboseMsg   = 6;
    bytes Msg           = 7;
+   string N3iwfId      = 8;
 }
 
 service NgapService {

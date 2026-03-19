@@ -49,10 +49,12 @@ func (b *GrpcServer) ConnectToServer(port int) {
 			req.Msgtype = gClient.MsgType_INIT_MSG
 			req.SctplbId = os.Getenv("HOSTNAME")
 			candidate := value.(*context.Ran)
-			if candidate.RanId != nil {
+			if candidate.N3iwfId != nil {
+				req.N3IwfId = *candidate.N3iwfId
+			} else if candidate.RanId != nil {
 				req.GnbId = *candidate.RanId
 			} else {
-				logger.AppLog.Infof("ran connection %v is exist without GnbId, so not sending this ran details to NF",
+				logger.AppLog.Infof("ran connection %v exists without RanId or N3iwfId, so not sending this ran details to NF",
 					candidate.GnbIp)
 			}
 			if err := stream.Send(&req); err != nil {
@@ -102,6 +104,7 @@ func (b *GrpcServer) readFromServer() {
 							t.SctplbId = os.Getenv("HOSTNAME")
 							t.Msg = response.Msg
 							t.GnbId = response.GnbId
+							t.N3IwfId = response.N3IwfId
 							err := b1.stream.Send(&t)
 							if err != nil {
 								logger.GrpcLog.Infoln("error forwarding msg")
@@ -117,18 +120,28 @@ func (b *GrpcServer) readFromServer() {
 				}
 			} else {
 				var ran *context.Ran
-				// fetch ran connection based on GnbId
-				if response.GnbId == "" {
-					logger.RanLog.Infoln("received null GnbId from backend NF")
-				} else if response.GnbIpAddr != "" {
-					// GnbId may present NGSetupreponse/failure receives from NF
+				// fetch ran connection based on GnbId or N3iwfId
+				switch {
+				case response.GnbIpAddr != "" && response.GnbId != "":
+					// NGSetupResponse for gNB: bind GnbId to the IP-keyed Ran
 					ran, _ = context.Sctplb_Self().RanFindByGnbIp(response.GnbIpAddr)
-					if ran != nil && response.GnbId != "" {
+					if ran != nil {
 						ran.SetRanId(response.GnbId)
-						logger.RanLog.Infof("received GnbId: %v for GNbIpAddress: %v from NF", response.GnbId, response.GnbIpAddr)
+						logger.RanLog.Infof("received GnbId: %v for GnbIpAddress: %v from NF", response.GnbId, response.GnbIpAddr)
 					}
-				} else if response.GnbId != "" {
+				case response.GnbIpAddr != "" && response.N3IwfId != "":
+					// NGSetupResponse for N3IWF: bind N3iwfId to the IP-keyed Ran
+					ran, _ = context.Sctplb_Self().RanFindByGnbIp(response.GnbIpAddr)
+					if ran != nil {
+						ran.SetN3iwfId(response.N3IwfId)
+						logger.RanLog.Infof("received N3iwfId: %v for GnbIpAddress: %v from NF", response.N3IwfId, response.GnbIpAddr)
+					}
+				case response.GnbId != "":
 					ran, _ = context.Sctplb_Self().RanFindByGnbId(response.GnbId)
+				case response.N3IwfId != "":
+					ran, _ = context.Sctplb_Self().RanFindByN3iwfId(response.N3IwfId)
+				default:
+					logger.RanLog.Infoln("received message with no RAN identifier from backend NF")
 				}
 				if ran != nil {
 					_, err := ran.Conn.Write(response.Msg)
@@ -136,7 +149,7 @@ func (b *GrpcServer) readFromServer() {
 						logger.RanLog.Infof("err %+v", err)
 					}
 				} else {
-					logger.RanLog.Infof("couldn't fetch sctp connection with GnbId: %v", response.GnbId)
+					logger.RanLog.Infof("couldn't fetch sctp connection with GnbId: %v or N3iwfId: %v", response.GnbId, response.N3IwfId)
 				}
 			}
 		}
@@ -159,26 +172,35 @@ func (b *GrpcServer) connectionOnState() {
 
 func (b *GrpcServer) Send(msg []byte, end bool, ran *context.Ran) error {
 	t := gClient.SctplbMessage{}
+	t.SctplbId = os.Getenv("HOSTNAME")
+	t.Msg = msg
 	if end {
-		t.VerboseMsg = "Bye From gNB Message !"
-		t.Msgtype = gClient.MsgType_GNB_DISC
-		t.SctplbId = os.Getenv("HOSTNAME")
-		if ran != nil && ran.RanId != nil {
-			t.GnbId = *ran.RanId
+		if ran != nil && ran.N3iwfId != nil {
+			t.VerboseMsg = "Bye From N3IWF Message !"
+			t.Msgtype = gClient.MsgType_N3IWF_DISC
+			t.N3IwfId = *ran.N3iwfId
+		} else {
+			t.VerboseMsg = "Bye From gNB Message !"
+			t.Msgtype = gClient.MsgType_GNB_DISC
+			if ran != nil && ran.RanId != nil {
+				t.GnbId = *ran.RanId
+			}
 		}
-		t.Msg = msg
 	} else {
-		t.VerboseMsg = "Hello From gNB Message !"
-		t.Msgtype = gClient.MsgType_GNB_MSG
-		t.SctplbId = os.Getenv("HOSTNAME")
-		// send GnbId to backendNF if exist
-		// GnbIp to backend ig GnbId is not exist, mostly this is for NGSetup Message
-		if ran.RanId != nil {
+		if ran.N3iwfId != nil {
+			t.VerboseMsg = "Hello From N3IWF Message !"
+			t.Msgtype = gClient.MsgType_N3IWF_MSG
+			t.N3IwfId = *ran.N3iwfId
+		} else if ran.RanId != nil {
+			t.VerboseMsg = "Hello From gNB Message !"
+			t.Msgtype = gClient.MsgType_GNB_MSG
 			t.GnbId = *ran.RanId
 		} else {
+			// no ID yet (pre-NGSetup); send IP so AMF can bind the ID
+			t.VerboseMsg = "Hello From gNB Message !"
+			t.Msgtype = gClient.MsgType_GNB_MSG
 			t.GnbIpAddr = ran.Conn.RemoteAddr().String()
 		}
-		t.Msg = msg
 	}
 	return b.stream.Send(&t)
 }
