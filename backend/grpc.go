@@ -101,12 +101,17 @@ func (b *GrpcServer) readFromServer() {
 							logger.GrpcLog.Infoln("backend state is not in READY state, so not forwarding redirected Msg")
 						} else {
 							t := gClient.SctplbMessage{}
-							t.VerboseMsg = verboseGnbMsg
-							t.Msgtype = gClient.MsgType_GNB_MSG
 							t.SctplbId = os.Getenv("HOSTNAME")
 							t.Msg = response.Msg
-							t.GnbId = response.GnbId
-							t.N3IwfId = response.N3IwfId
+							if response.N3IwfId != "" {
+								t.VerboseMsg = "redirected from AMF to N3IWF"
+								t.Msgtype = gClient.MsgType_N3IWF_MSG
+								t.N3IwfId = response.N3IwfId
+							} else {
+								t.VerboseMsg = verboseGnbMsg
+								t.Msgtype = gClient.MsgType_GNB_MSG
+								t.GnbId = response.GnbId
+							}
 							err := b1.stream.Send(&t)
 							if err != nil {
 								logger.GrpcLog.Infoln("error forwarding msg")

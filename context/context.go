@@ -87,6 +87,9 @@ func (context *SctplbContext) RanFindByConn(conn net.Conn) (*Ran, bool) {
 func (context *SctplbContext) RanFindByGnbId(gnbId string) (ran *Ran, ok bool) {
 	context.RanPool.Range(func(key, value any) bool {
 		candidate := value.(*Ran)
+		if candidate.RanId == nil {
+			return true
+		}
 		if ok = (*candidate.RanId == gnbId); ok {
 			ran = candidate
 			return false
