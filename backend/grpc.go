@@ -17,6 +17,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+const verboseGnbMsg = "Hello From gNB Message !"
+
 func (b *GrpcServer) ConnectToServer(port int) {
 	target := fmt.Sprintf("%s:%d", b.address, port)
 
@@ -99,7 +101,7 @@ func (b *GrpcServer) readFromServer() {
 							logger.GrpcLog.Infoln("backend state is not in READY state, so not forwarding redirected Msg")
 						} else {
 							t := gClient.SctplbMessage{}
-							t.VerboseMsg = "Hello From gNB Message !"
+							t.VerboseMsg = verboseGnbMsg
 							t.Msgtype = gClient.MsgType_GNB_MSG
 							t.SctplbId = os.Getenv("HOSTNAME")
 							t.Msg = response.Msg
@@ -192,12 +194,12 @@ func (b *GrpcServer) Send(msg []byte, end bool, ran *context.Ran) error {
 			t.Msgtype = gClient.MsgType_N3IWF_MSG
 			t.N3IwfId = *ran.N3iwfId
 		} else if ran.RanId != nil {
-			t.VerboseMsg = "Hello From gNB Message !"
+			t.VerboseMsg = verboseGnbMsg
 			t.Msgtype = gClient.MsgType_GNB_MSG
 			t.GnbId = *ran.RanId
 		} else {
 			// no ID yet (pre-NGSetup); send IP so AMF can bind the ID
-			t.VerboseMsg = "Hello From gNB Message !"
+			t.VerboseMsg = verboseGnbMsg
 			t.Msgtype = gClient.MsgType_GNB_MSG
 			t.GnbIpAddr = ran.Conn.RemoteAddr().String()
 		}

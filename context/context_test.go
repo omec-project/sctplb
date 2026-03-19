@@ -34,9 +34,9 @@ func Test_RanID(t *testing.T) {
 	n3iwfVal := "42"
 
 	tests := []struct {
-		name    string
-		ran     *Ran
-		wantID  string
+		name   string
+		ran    *Ran
+		wantID string
 	}{
 		{
 			name:   "no ID set",
@@ -82,10 +82,10 @@ func Test_RanFindByN3iwfId(t *testing.T) {
 	ctx.RanPool.Store("key3", r3)
 
 	tests := []struct {
-		name     string
-		n3iwfId  string
+		name      string
+		n3iwfId   string
 		wantGnbIp string
-		wantOk   bool
+		wantOk    bool
 	}{
 		{name: "find r1", n3iwfId: "100", wantGnbIp: "10.0.0.1", wantOk: true},
 		{name: "find r2", n3iwfId: "200", wantGnbIp: "10.0.0.2", wantOk: true},
