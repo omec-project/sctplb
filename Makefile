@@ -21,7 +21,8 @@ DOCKER_TAG               ?= $(VERSION)
 DOCKER_IMAGE_PREFIX      ?= 
 DOCKER_IMAGENAME         := $(DOCKER_REGISTRY)$(DOCKER_REPOSITORY)$(DOCKER_IMAGE_PREFIX)$(PROJECT_NAME):$(DOCKER_TAG)
 DOCKER_BUILDKIT          ?= 1
-DOCKER_BUILD_ARGS        ?= --build-arg MAKEFLAGS=-j$(NPROCS)
+DEBUG_TOOLS              ?= false
+DOCKER_BUILD_ARGS        ?= --build-arg MAKEFLAGS=-j$(NPROCS) --build-arg DEBUG_TOOLS=$(DEBUG_TOOLS)
 DOCKER_PULL              ?= --pull
 
 ## Docker labels with better error handling
@@ -46,7 +47,6 @@ COVERAGE_DIR             := .coverage
 
 ## Go build configuration
 GO_FILES                 := $(shell find . -name "*.go" ! -name "*_test.go" 2>/dev/null)
-GO_FILES_ALL             := $(shell find . -name "*.go" 2>/dev/null)
 
 ## Tool versions (for reproducible builds)
 GOLANGCI_LINT_VERSION    ?= latest
@@ -168,6 +168,7 @@ env: ## Print environment variables
 	@echo "DOCKER_REPOSITORY=$(DOCKER_REPOSITORY)"
 	@echo "DOCKER_IMAGE_PREFIX=$(DOCKER_IMAGE_PREFIX)"
 	@echo "DOCKER_TAG=$(DOCKER_TAG)"
+	@echo "DEBUG_TOOLS=$(DEBUG_TOOLS)"
 	@echo "DOCKER_IMAGENAME=$(DOCKER_IMAGENAME)"
 	@echo "DOCKER_LABEL_VCS_URL=$(DOCKER_LABEL_VCS_URL)"
 	@echo "DOCKER_LABEL_VCS_REF=$(DOCKER_LABEL_VCS_REF)"
