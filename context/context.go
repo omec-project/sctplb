@@ -29,9 +29,10 @@ var (
 )
 
 type Ran struct {
-	RanId *string
-	Name  string
-	GnbIp string
+	RanId   *string
+	N3iwfId *string
+	Name    string
+	GnbIp   string
 	/* socket Connect*/
 	Conn net.Conn `json:"-"`
 
@@ -47,7 +48,14 @@ func (ran *Ran) SetRanId(gnbId string) {
 	ran.RanId = &gnbId
 }
 
+func (ran *Ran) SetN3iwfId(id string) {
+	ran.N3iwfId = &id
+}
+
 func (ran *Ran) RanID() string {
+	if ran.N3iwfId != nil {
+		return "<N3iwfID " + *ran.N3iwfId + ">"
+	}
 	if ran.RanId != nil {
 		var builder strings.Builder
 		builder.WriteString("<Mcc:Mnc:GNbID ")
@@ -79,9 +87,27 @@ func (context *SctplbContext) RanFindByConn(conn net.Conn) (*Ran, bool) {
 func (context *SctplbContext) RanFindByGnbId(gnbId string) (ran *Ran, ok bool) {
 	context.RanPool.Range(func(key, value any) bool {
 		candidate := value.(*Ran)
+		if candidate.RanId == nil {
+			return true
+		}
 		if ok = (*candidate.RanId == gnbId); ok {
 			ran = candidate
 			return false
+		}
+		return true
+	})
+	return
+}
+
+// get Ran using N3iwfId
+func (context *SctplbContext) RanFindByN3iwfId(n3iwfId string) (ran *Ran, ok bool) {
+	context.RanPool.Range(func(key, value any) bool {
+		candidate := value.(*Ran)
+		if candidate.N3iwfId != nil {
+			if ok = (*candidate.N3iwfId == n3iwfId); ok {
+				ran = candidate
+				return false
+			}
 		}
 		return true
 	})
