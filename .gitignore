@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Intel Corporation
+# SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
+# Copyright 2019 free5GC.org
+# SPDX-License-Identifier: Apache-2.0
+
+# Toolchain
+# Goland project folder
+.idea/
+# Visual Studio Code
+.vscode/
+# emacs/vim
+GPATH
+GRTAGS
+GTAGS
+TAGS
+tags
+cscope.*
+# mac
+.DS_Store
+
+# debug
+*.log
+*.pcap
+*.patch
+*.out
+*.test
+__debug_bin*
+
+# generated directories
+/bin/
+/.coverage/
+/vendor/

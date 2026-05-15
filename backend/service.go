@@ -13,7 +13,7 @@ import (
 	"syscall"
 
 	"github.com/ishidawataru/sctp"
-	"github.com/omec-project/ngap"
+	"github.com/omec-project/ngap/v2"
 	"github.com/omec-project/sctplb/logger"
 )
 
