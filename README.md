@@ -3,7 +3,6 @@ SPDX-License-Identifier: Apache-2.0
 Copyright 2022-present Open Networking Foundation
 -->
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/omec-project/sctplb)](https://goreportcard.com/report/github.com/omec-project/sctplb)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/omec-project/sctplb/badge)](https://scorecard.dev/viewer/?uri=github.com/omec-project/sctplb)
 
 # sctplb
