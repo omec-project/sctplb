@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2024 Intel Corporation
 name: CI Pipeline
-
 on:
   pull_request:
     branches:
@@ -9,10 +8,8 @@ on:
   push:
     branches:
       - main
-
 permissions:
   contents: read
-
 jobs:
   build:
     permissions:
@@ -24,7 +21,6 @@ jobs:
     uses: omec-project/.github/.github/workflows/build.yml@c6f69e74f8ee9034dcc237ccbd719de59526aee5 # v0.0.30
     with:
       branch_name: ${{ github.ref }}
-
   docker-build:
     permissions:
       contents: read
@@ -34,7 +30,6 @@ jobs:
     uses: omec-project/.github/.github/workflows/docker-build.yml@c6f69e74f8ee9034dcc237ccbd719de59526aee5 # v0.0.30
     with:
       branch_name: ${{ github.ref }}
-
   static-analysis:
     permissions:
       contents: read
@@ -45,7 +40,6 @@ jobs:
     uses: omec-project/.github/.github/workflows/static-analysis.yml@c6f69e74f8ee9034dcc237ccbd719de59526aee5 # v0.0.30
     with:
       branch_name: ${{ github.ref }}
-
   lint:
     permissions:
       contents: read
@@ -56,7 +50,6 @@ jobs:
     with:
       golangci_lint_version: 'v2.11.3'
       branch_name: ${{ github.ref }}
-
   hadolint:
     permissions:
       contents: read
@@ -66,7 +59,6 @@ jobs:
     uses: omec-project/.github/.github/workflows/hadolint.yml@c6f69e74f8ee9034dcc237ccbd719de59526aee5 # v0.0.30
     with:
       branch_name: ${{ github.ref }}
-
   license-check:
     permissions:
       contents: read
@@ -75,7 +67,6 @@ jobs:
     uses: omec-project/.github/.github/workflows/license-check.yml@c6f69e74f8ee9034dcc237ccbd719de59526aee5 # v0.0.30
     with:
       branch_name: ${{ github.ref }}
-
   fossa-scan:
     permissions:
       contents: read
@@ -85,7 +76,6 @@ jobs:
     uses: omec-project/.github/.github/workflows/fossa-scan.yml@c6f69e74f8ee9034dcc237ccbd719de59526aee5 # v0.0.30
     with:
       branch_name: ${{ github.ref }}
-
   unit-tests:
     permissions:
       contents: read
@@ -95,7 +85,6 @@ jobs:
     uses: omec-project/.github/.github/workflows/unit-test.yml@c6f69e74f8ee9034dcc237ccbd719de59526aee5 # v0.0.30
     with:
       branch_name: ${{ github.ref }}
-
   analysis:
     if: github.repository_owner == 'omec-project'
     permissions:
