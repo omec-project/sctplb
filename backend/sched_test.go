@@ -40,8 +40,8 @@ func Test_RoundRobin(t *testing.T) {
 	initBackendNF()
 
 	tests := []struct {
-		name string
 		want *GrpcServer
+		name string
 	}{
 		{
 			name: "Get BackendNF - 1",

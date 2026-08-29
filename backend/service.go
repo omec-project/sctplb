@@ -101,10 +101,10 @@ func listenAndServe(addr *sctp.SCTPAddr, handler SCTPHandler) {
 		}
 
 		var info *sctp.SndRcvInfo
-		if infoTmp, err := newConn.GetDefaultSentParam(); err != nil {
-			logger.SctpLog.Errorf("get default sent param error: %+v, accept failed", err)
-			if err = newConn.Close(); err != nil {
-				logger.SctpLog.Errorf("close error: %+v", err)
+		if infoTmp, getParamErr := newConn.GetDefaultSentParam(); getParamErr != nil {
+			logger.SctpLog.Errorf("get default sent param error: %+v, accept failed", getParamErr)
+			if closeErr := newConn.Close(); closeErr != nil {
+				logger.SctpLog.Errorf("close error: %+v", closeErr)
 			}
 			continue
 		} else {
@@ -113,10 +113,10 @@ func listenAndServe(addr *sctp.SCTPAddr, handler SCTPHandler) {
 		}
 
 		info.PPID = ngap.PPID
-		if err := newConn.SetDefaultSentParam(info); err != nil {
-			logger.SctpLog.Errorf("set default sent param error: %+v, accept failed", err)
-			if err = newConn.Close(); err != nil {
-				logger.SctpLog.Errorf("close error: %+v", err)
+		if setParamErr := newConn.SetDefaultSentParam(info); setParamErr != nil {
+			logger.SctpLog.Errorf("set default sent param error: %+v, accept failed", setParamErr)
+			if closeErr := newConn.Close(); closeErr != nil {
+				logger.SctpLog.Errorf("close error: %+v", closeErr)
 			}
 			continue
 		} else {
@@ -124,20 +124,20 @@ func listenAndServe(addr *sctp.SCTPAddr, handler SCTPHandler) {
 		}
 
 		events := sctp.SCTP_EVENT_DATA_IO | sctp.SCTP_EVENT_SHUTDOWN | sctp.SCTP_EVENT_ASSOCIATION
-		if err := newConn.SubscribeEvents(events); err != nil {
-			logger.SctpLog.Errorf("failed to accept: %+v", err)
-			if err = newConn.Close(); err != nil {
-				logger.SctpLog.Errorf("close error: %+v", err)
+		if subErr := newConn.SubscribeEvents(events); subErr != nil {
+			logger.SctpLog.Errorf("failed to accept: %+v", subErr)
+			if closeErr := newConn.Close(); closeErr != nil {
+				logger.SctpLog.Errorf("close error: %+v", closeErr)
 			}
 			continue
 		} else {
 			logger.SctpLog.Debugln("subscribe SCTP event[DATA_IO, SHUTDOWN_EVENT, ASSOCIATION_CHANGE]")
 		}
 
-		if err := newConn.SetReadBuffer(int(readBufSize)); err != nil {
-			logger.SctpLog.Errorf("set read buffer error: %+v, accept failed", err)
-			if err = newConn.Close(); err != nil {
-				logger.SctpLog.Errorf("close error: %+v", err)
+		if setBufErr := newConn.SetReadBuffer(int(readBufSize)); setBufErr != nil {
+			logger.SctpLog.Errorf("set read buffer error: %+v, accept failed", setBufErr)
+			if closeErr := newConn.Close(); closeErr != nil {
+				logger.SctpLog.Errorf("close error: %+v", closeErr)
 			}
 			continue
 		} else {

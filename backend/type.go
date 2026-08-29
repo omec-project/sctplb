@@ -25,9 +25,9 @@ type BackendSvc struct {
 var _ context.NF = &GrpcServer{}
 
 type GrpcServer struct {
-	address string
-	conn    *grpc.ClientConn
 	gc      gClient.NgapServiceClient
-	state   bool
 	stream  gClient.NgapService_HandleMessageClient
+	conn    *grpc.ClientConn
+	address string
+	state   bool
 }
