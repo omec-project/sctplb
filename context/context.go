@@ -29,13 +29,11 @@ var (
 )
 
 type Ran struct {
+	Conn  net.Conn `json:"-"`
 	RanId *string
+	Log   *zap.SugaredLogger `json:"-"`
 	Name  string
 	GnbIp string
-	/* socket Connect*/
-	Conn net.Conn `json:"-"`
-
-	Log *zap.SugaredLogger `json:"-"`
 }
 
 func (ran *Ran) Remove() {
