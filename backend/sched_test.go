@@ -13,6 +13,8 @@ import (
 
 func initBackendNF() {
 	ctx := context.Sctplb_Self()
+	ctx.Reset()
+	next = 0
 	nfList := []*GrpcServer{
 		{
 			address: "127.0.0.1",
