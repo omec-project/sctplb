@@ -140,6 +140,12 @@ func (context *SctplbContext) NFLength() int {
 	return nfNum
 }
 
+// Reset clears all backend NFs and resets the NF counter. Intended for test setup.
+func (context *SctplbContext) Reset() {
+	context.Backends = nil
+	nfNum = 0
+}
+
 func (context *SctplbContext) Lock() {
 	mutex.Lock()
 }
