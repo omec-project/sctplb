@@ -41,59 +41,79 @@ func RoundRobin() Backend {
 	return instance
 }
 
+// discoveryInterval is the pause between two passes over the configured
+// services.
+const discoveryInterval = 2 * time.Second
+
+// lookupIPAddr resolves a service name, and startBackend connects a newly found
+// backend; both are variables so that tests can replace them.
+var (
+	lookupIPAddr = net.DefaultResolver.LookupIPAddr
+	startBackend = func(backend context.NF, port int) { go backend.ConnectToServer(port) }
+)
+
+// DispatchAddServer keeps the backend pool in step with the configured
+// services: every discoveryInterval, each service's name is resolved once and
+// a backend is added for every IPv4 address that is not one yet. There can be
+// more than one message outstanding towards the same backend.
 func (b BackendSvc) DispatchAddServer() {
-	// add server in pool
-	// create server
-	// create server outstanding message queue
-	// connect to server
-	// there can be more than 1 message outstanding toards same server
 	for {
-		ctx := context.Sctplb_Self()
-		svcList := b.Cfg.Configuration.Services
-		for _, svc := range svcList {
-			for {
-				logger.DiscoveryLog.Debugln("discover Service", svc.Uri)
-				ips, err := net.DefaultResolver.LookupIPAddr(stdctx.Background(), svc.Uri)
-				if err != nil {
-					logger.DiscoveryLog.Warnf("discover Service %s error %+v", svc.Uri, err)
-					time.Sleep(2 * time.Second)
-					continue
-				}
-				for _, ipAddr := range ips {
-					ip := ipAddr.IP
-					logger.DiscoveryLog.Debugln("discover Service %s, ip %s", svc.Uri, ", ip", ip.String())
-					found := false
-					if ipv4 := ip.To4(); ipv4 != nil {
-						for _, instance := range ctx.Backends {
-							b := instance.(*GrpcServer)
-							if b.address == ipv4.String() {
-								found = true
-								break
-							}
-						}
-						if found {
-							continue
-						}
-						logger.DiscoveryLog.Infoln("new server found IPv4:", ipv4.String())
-						var backend context.NF
-						switch b.Cfg.Configuration.Type {
-						case "grpc":
-							backend = &GrpcServer{
-								address: ipv4.String(),
-							}
-						default:
-							logger.DiscoveryLog.Warnln("unsupported backend type:", b.Cfg.Configuration.Type)
-						}
-						ctx.Lock()
-						ctx.AddNF(backend)
-						ctx.Unlock()
-						go backend.ConnectToServer(b.Cfg.Configuration.SctpGrpcPort)
-					}
-				}
-			}
+		for _, svc := range b.Cfg.Configuration.Services {
+			b.discoverService(svc.Uri)
 		}
-		time.Sleep(2 * time.Second)
+		time.Sleep(discoveryInterval)
 	}
+}
+
+// discoverService resolves one service once. A failed lookup is logged, and the
+// next pass tries again.
+func (b BackendSvc) discoverService(uri string) {
+	logger.DiscoveryLog.Debugln("discover service", uri)
+	ips, err := lookupIPAddr(stdctx.Background(), uri)
+	if err != nil {
+		logger.DiscoveryLog.Warnf("discover service %s error %+v", uri, err)
+		return
+	}
+	ctx := context.Sctplb_Self()
+	for _, ipAddr := range ips {
+		ipv4 := ipAddr.IP.To4()
+		if ipv4 == nil {
+			continue
+		}
+		address := ipv4.String()
+		logger.DiscoveryLog.Debugf("discover service %s, ip %s", uri, address)
+
+		ctx.Lock()
+		if hasBackend(ctx, address) {
+			ctx.Unlock()
+			continue
+		}
+		var backend context.NF
+		switch b.Cfg.Configuration.Type {
+		case "grpc":
+			backend = &GrpcServer{address: address}
+		default:
+			ctx.Unlock()
+			logger.DiscoveryLog.Warnln("unsupported backend type:", b.Cfg.Configuration.Type)
+			return
+		}
+		ctx.AddNF(backend)
+		ctx.Unlock()
+
+		logger.DiscoveryLog.Infoln("new server found IPv4:", address)
+		startBackend(backend, b.Cfg.Configuration.SctpGrpcPort)
+	}
+}
+
+// hasBackend reports whether a backend with this address is in the pool. The
+// caller holds the context's lock.
+func hasBackend(ctx *context.SctplbContext, address string) bool {
+	for _, instance := range ctx.Backends {
+		if grpcServer, ok := instance.(*GrpcServer); ok && grpcServer.address == address {
+			return true
+		}
+	}
+	return false
 }
 
 func deleteBackendNF(b context.NF) {
