@@ -6,10 +6,12 @@
 package backend
 
 import (
+	"context"
 	"encoding/hex"
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/ishidawataru/sctp"
@@ -31,6 +33,7 @@ var (
 	sctpListener *sctp.SCTPListener
 	connections  sync.Map
 	wg           sync.WaitGroup
+	shuttingDown atomic.Bool
 )
 
 var handler SCTPHandler
@@ -91,6 +94,10 @@ func listenAndServe(addr *sctp.SCTPAddr, handler SCTPHandler) {
 	for {
 		newConn, err := sctpListener.AcceptSCTP()
 		if err != nil {
+			if shuttingDown.Load() {
+				logger.SctpLog.Infoln("SCTP listener closed, stopping accept loop")
+				return
+			}
 			switch err {
 			case syscall.EINTR, syscall.EAGAIN:
 				logger.SctpLog.Debugf("acceptSCTP: %+v", err)
@@ -251,5 +258,41 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 		logger.SctpLog.Debugf("packet content: %+v", hex.Dump(buf[:n]))
 
 		handler.HandleMessage(conn, buf[:n])
+	}
+}
+
+// Shutdown stops accepting new SCTP connections, closes the existing gNB and
+// backend NF connections, and waits for their handler goroutines to finish or
+// for ctx to expire, whichever happens first.
+func Shutdown(ctx context.Context) {
+	shuttingDown.Store(true)
+
+	if sctpListener != nil {
+		if err := sctpListener.Close(); err != nil {
+			logger.SctpLog.Warnf("close listener error: %+v", err)
+		}
+	}
+
+	connections.Range(func(key, _ any) bool {
+		conn := key.(*sctp.SCTPConn)
+		if err := conn.Close(); err != nil && err != syscall.EBADF {
+			logger.SctpLog.Warnf("close connection error: %+v", err)
+		}
+		return true
+	})
+
+	closeBackends()
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		logger.AppLog.Infoln("all connections closed")
+	case <-ctx.Done():
+		logger.AppLog.Warnln("timed out waiting for connections to close")
 	}
 }

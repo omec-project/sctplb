@@ -112,6 +112,7 @@ type NF interface {
 	ConnectToServer(int)
 	Send([]byte, bool, *Ran) error
 	State() bool
+	Close()
 }
 
 func (context *SctplbContext) DeleteNF(target NF) {

@@ -186,3 +186,18 @@ func (b *GrpcServer) Send(msg []byte, end bool, ran *context.Ran) error {
 func (b *GrpcServer) State() bool {
 	return b.state
 }
+
+// Close shuts down the stream and the connection to the backend NF.
+func (b *GrpcServer) Close() {
+	b.state = false
+	if b.stream != nil {
+		if err := b.stream.CloseSend(); err != nil {
+			logger.GrpcLog.Warnf("close stream error: %+v", err)
+		}
+	}
+	if b.conn != nil {
+		if err := b.conn.Close(); err != nil {
+			logger.GrpcLog.Warnf("close connection error: %+v", err)
+		}
+	}
+}

@@ -55,11 +55,17 @@ var (
 // DispatchAddServer keeps the backend pool in step with the configured
 // services: every discoveryInterval, each service's name is resolved once and
 // a backend is added for every IPv4 address that is not one yet. There can be
-// more than one message outstanding towards the same backend.
-func (b BackendSvc) DispatchAddServer() {
+// more than one message outstanding towards the same backend. It returns once
+// ctx is done.
+func (b BackendSvc) DispatchAddServer(ctx stdctx.Context) {
 	for {
 		b.discoverAll()
-		time.Sleep(discoveryInterval)
+		select {
+		case <-ctx.Done():
+			logger.DiscoveryLog.Infoln("stopping backend discovery")
+			return
+		case <-time.After(discoveryInterval):
+		}
 	}
 }
 
@@ -129,6 +135,16 @@ func deleteBackendNF(b context.NF) {
 	ctx.DeleteNF(b)
 	for _, b1 := range ctx.Backends {
 		logger.AppLog.Infof("available backend %v", b1)
+	}
+}
+
+// closeBackends closes every connected backend NF. Used during shutdown.
+func closeBackends() {
+	ctx := context.Sctplb_Self()
+	ctx.Lock()
+	defer ctx.Unlock()
+	for _, b := range ctx.Backends {
+		b.Close()
 	}
 }
 
