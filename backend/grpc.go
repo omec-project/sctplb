@@ -117,9 +117,14 @@ func (b *GrpcServer) readFromServer() {
 			if response.Msgtype == gClient.MsgType_INIT_MSG {
 				logger.GrpcLog.Infof("init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
 			} else if response.Msgtype == gClient.MsgType_REDIRECT_MSG {
+				sctplbSelf := sctplbCtx.Sctplb_Self()
+				sctplbSelf.Lock()
+				backends := make([]sctplbCtx.NF, len(sctplbSelf.Backends))
+				copy(backends, sctplbSelf.Backends)
+				sctplbSelf.Unlock()
+
 				var found bool
-				ctx := sctplbCtx.Sctplb_Self()
-				for _, instance := range ctx.Backends {
+				for _, instance := range backends {
 					b1 := instance.(*GrpcServer)
 					if b1.address == response.RedirectId {
 						if !b1.state.Load() {
@@ -179,11 +184,14 @@ func (b *GrpcServer) connectionOnState() {
 		// continue checking for state change
 		// until one of break states is found
 		for {
-			change := b.conn.WaitForStateChange(context.Background(), b.conn.GetState())
-			if change && b.conn.GetState() == connectivity.Idle {
+			state := b.conn.GetState()
+			// Idle/Shutdown are terminal: sample them before waiting, since
+			// WaitForStateChange(ctx, Shutdown) never returns (Shutdown can't change).
+			if state == connectivity.Idle || state == connectivity.Shutdown {
 				deleteBackendNF(b)
 				return
 			}
+			b.conn.WaitForStateChange(context.Background(), state)
 		}
 	}()
 }
