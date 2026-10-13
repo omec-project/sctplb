@@ -117,9 +117,14 @@ func (b *GrpcServer) readFromServer() {
 			if response.Msgtype == gClient.MsgType_INIT_MSG {
 				logger.GrpcLog.Infof("init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
 			} else if response.Msgtype == gClient.MsgType_REDIRECT_MSG {
+				sctplbSelf := sctplbCtx.Sctplb_Self()
+				sctplbSelf.Lock()
+				backends := make([]sctplbCtx.NF, len(sctplbSelf.Backends))
+				copy(backends, sctplbSelf.Backends)
+				sctplbSelf.Unlock()
+
 				var found bool
-				ctx := sctplbCtx.Sctplb_Self()
-				for _, instance := range ctx.Backends {
+				for _, instance := range backends {
 					b1 := instance.(*GrpcServer)
 					if b1.address == response.RedirectId {
 						if !b1.state.Load() {
@@ -180,7 +185,10 @@ func (b *GrpcServer) connectionOnState() {
 		// until one of break states is found
 		for {
 			change := b.conn.WaitForStateChange(context.Background(), b.conn.GetState())
-			if change && b.conn.GetState() == connectivity.Idle {
+			state := b.conn.GetState()
+			// Shutdown is terminal (e.g. after Close), so it must end this loop too:
+			// otherwise the next WaitForStateChange call never returns.
+			if change && (state == connectivity.Idle || state == connectivity.Shutdown) {
 				deleteBackendNF(b)
 				return
 			}
