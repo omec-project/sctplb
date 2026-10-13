@@ -33,7 +33,7 @@ func useFakeDiscovery(t *testing.T, f *fakeDiscovery) {
 		f.names = append(f.names, name)
 		return f.ips, f.err
 	}
-	startBackend = func(backend context.NF, _ int) {
+	startBackend = func(_ stdctx.Context, backend context.NF, _ int) {
 		f.started = append(f.started, backend.(*GrpcServer).address)
 	}
 	t.Cleanup(func() {
@@ -62,7 +62,7 @@ func TestDiscoverService_ResolvesOnceAndAddsNewIPv4Backends(t *testing.T) {
 	useFakeDiscovery(t, f)
 	svc := grpcService("grpc")
 
-	svc.discoverService("amf")
+	svc.discoverService(stdctx.Background(), "amf")
 	if f.lookups != 1 {
 		t.Fatalf("lookups = %d, want 1", f.lookups)
 	}
@@ -71,7 +71,7 @@ func TestDiscoverService_ResolvesOnceAndAddsNewIPv4Backends(t *testing.T) {
 	}
 
 	// A second pass finds the same addresses and adds nothing.
-	svc.discoverService("amf")
+	svc.discoverService(stdctx.Background(), "amf")
 	if f.lookups != 2 || context.Sctplb_Self().NFLength() != 2 || len(f.started) != 2 {
 		t.Fatalf("after a second pass: lookups %d, backends %d, started %v; want 2, 2, 2",
 			f.lookups, context.Sctplb_Self().NFLength(), f.started)
@@ -82,7 +82,7 @@ func TestDiscoverService_FailedLookupAddsNothing(t *testing.T) {
 	f := &fakeDiscovery{err: errors.New("no such host")}
 	useFakeDiscovery(t, f)
 
-	grpcService("grpc").discoverService("amf")
+	grpcService("grpc").discoverService(stdctx.Background(), "amf")
 	if f.lookups != 1 || context.Sctplb_Self().NFLength() != 0 {
 		t.Fatalf("lookups %d, backends %d; want 1, 0", f.lookups, context.Sctplb_Self().NFLength())
 	}
@@ -93,7 +93,7 @@ func TestDiscoverService_UnsupportedTypeAddsNothing(t *testing.T) {
 	f := &fakeDiscovery{ips: []net.IPAddr{{IP: net.ParseIP("10.0.0.1")}}}
 	useFakeDiscovery(t, f)
 
-	grpcService("http").discoverService("amf")
+	grpcService("http").discoverService(stdctx.Background(), "amf")
 	if context.Sctplb_Self().NFLength() != 0 || len(f.started) != 0 {
 		t.Fatalf("backends %d, started %v; want none", context.Sctplb_Self().NFLength(), f.started)
 	}
@@ -113,7 +113,7 @@ func TestDiscoverAll_ResolvesEachServiceOncePerPass(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			useFakeDiscovery(t, tc.f)
-			grpcService("grpc", "amf", "amf-2").discoverAll()
+			grpcService("grpc", "amf", "amf-2").discoverAll(stdctx.Background())
 			if len(tc.f.names) != 2 || tc.f.names[0] != "amf" || tc.f.names[1] != "amf-2" {
 				t.Fatalf("looked up %v, want [amf amf-2]", tc.f.names)
 			}

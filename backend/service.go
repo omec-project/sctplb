@@ -31,9 +31,14 @@ var readTimeout syscall.Timeval = syscall.Timeval{Sec: 2, Usec: 0}
 
 var (
 	sctpListener *sctp.SCTPListener
-	connections  sync.Map
-	wg           sync.WaitGroup
-	shuttingDown atomic.Bool
+	listenerMu   sync.Mutex
+	// acceptLoopDone is closed once listenAndServe's accept loop has returned,
+	// so Shutdown knows no further connections will be accepted or registered
+	// in wg before it waits on wg.
+	acceptLoopDone = make(chan struct{})
+	connections    sync.Map
+	wg             sync.WaitGroup
+	shuttingDown   atomic.Bool
 )
 
 var handler SCTPHandler
@@ -82,12 +87,26 @@ func ServiceRun(addresses []string, port int) {
 }
 
 func listenAndServe(addr *sctp.SCTPAddr, handler SCTPHandler) {
-	if listener, err := sctpConfig.Listen("sctp", addr); err != nil {
+	defer close(acceptLoopDone)
+
+	listener, err := sctpConfig.Listen("sctp", addr)
+	if err != nil {
 		logger.SctpLog.Errorf("failed to listen: %+v", err)
 		return
-	} else {
-		sctpListener = listener
 	}
+
+	// Publish the listener and check for a concurrent shutdown under the same
+	// lock Shutdown uses, so the listener can never be missed nor left open.
+	listenerMu.Lock()
+	if shuttingDown.Load() {
+		listenerMu.Unlock()
+		if closeErr := listener.Close(); closeErr != nil {
+			logger.SctpLog.Warnf("close listener error: %+v", closeErr)
+		}
+		return
+	}
+	sctpListener = listener
+	listenerMu.Unlock()
 
 	logger.SctpLog.Infof("listen on %s", sctpListener.Addr())
 
@@ -182,13 +201,15 @@ func listenAndServe(addr *sctp.SCTPAddr, handler SCTPHandler) {
 		peer.address = newConn.RemoteAddr().String()
 		connections.Store(newConn, peer)
 
-		go handleConnection(newConn, readBufSize, handler)
+		// Register before launching so a concurrent wg.Wait in Shutdown can never
+		// observe a zero counter for a connection that was already accepted.
+		wg.Go(func() {
+			handleConnection(newConn, readBufSize, handler)
+		})
 	}
 }
 
 func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) {
-	wg.Add(1)
-	defer wg.Done()
 	buf := make([]byte, bufsize)
 
 	defer func() {
@@ -265,12 +286,23 @@ func handleConnection(conn *sctp.SCTPConn, bufsize uint32, handler SCTPHandler) 
 // backend NF connections, and waits for their handler goroutines to finish or
 // for ctx to expire, whichever happens first.
 func Shutdown(ctx context.Context) {
+	listenerMu.Lock()
 	shuttingDown.Store(true)
+	listener := sctpListener
+	listenerMu.Unlock()
 
-	if sctpListener != nil {
-		if err := sctpListener.Close(); err != nil {
+	if listener != nil {
+		if err := listener.Close(); err != nil {
 			logger.SctpLog.Warnf("close listener error: %+v", err)
 		}
+	}
+
+	// Wait for the accept loop to stop so every accepted connection has
+	// already registered with wg before we close connections and wait on it.
+	select {
+	case <-acceptLoopDone:
+	case <-ctx.Done():
+		logger.AppLog.Warnln("timed out waiting for accept loop to stop")
 	}
 
 	connections.Range(func(key, _ any) bool {
@@ -281,8 +313,10 @@ func Shutdown(ctx context.Context) {
 		return true
 	})
 
-	closeBackends()
-
+	// Wait for SCTP handlers to finish before closing backend streams: a
+	// handler that already selected a backend but hasn't sent yet must not
+	// lose its message to a concurrent CloseSend. On timeout, closeBackends
+	// can still force-unblock a stuck send.
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -295,4 +329,6 @@ func Shutdown(ctx context.Context) {
 	case <-ctx.Done():
 		logger.AppLog.Warnln("timed out waiting for connections to close")
 	}
+
+	closeBackends(ctx)
 }

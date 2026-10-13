@@ -8,6 +8,7 @@
 package context
 
 import (
+	stdctx "context"
 	"net"
 	"strings"
 	"sync"
@@ -109,10 +110,10 @@ func Sctplb_Self() *SctplbContext {
 }
 
 type NF interface {
-	ConnectToServer(int)
+	ConnectToServer(ctx stdctx.Context, port int)
 	Send([]byte, bool, *Ran) error
 	State() bool
-	Close()
+	Close(ctx stdctx.Context)
 }
 
 func (context *SctplbContext) DeleteNF(target NF) {
