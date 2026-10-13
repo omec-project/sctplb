@@ -5,11 +5,11 @@
 package backend
 
 import (
-	ctxt "context"
+	"context"
 	"fmt"
 	"os"
 
-	"github.com/omec-project/sctplb/context"
+	sctplbCtx "github.com/omec-project/sctplb/context"
 	"github.com/omec-project/sctplb/logger"
 	gClient "github.com/omec-project/sctplb/sdcoreAmfServer"
 	"google.golang.org/grpc"
@@ -17,7 +17,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func (b *GrpcServer) ConnectToServer(port int) {
+func (b *GrpcServer) ConnectToServer(ctx context.Context, port int) {
+	if ctx.Err() != nil {
+		deleteBackendNF(b)
+		return
+	}
+
 	target := fmt.Sprintf("%s:%d", b.address, port)
 
 	logger.AppLog.Infoln("connecting to target", target)
@@ -32,52 +37,76 @@ func (b *GrpcServer) ConnectToServer(port int) {
 
 	b.gc = gClient.NewNgapServiceClient(b.conn)
 
-	stream, err := b.gc.HandleMessage(ctxt.Background())
+	// The stream lives on its own context, not the shutdown signal ctx: SIGTERM
+	// must not cancel in-flight RPCs before Close can drain them gracefully.
+	streamCtx, cancel := context.WithCancel(context.Background())
+	b.streamCancel = cancel
+	stream, err := b.gc.HandleMessage(streamCtx)
 	if err != nil {
+		cancel()
 		logger.AppLog.Errorw("open stream error", err)
 		deleteBackendNF(b)
 		return
 	}
 
 	b.stream = stream
-	b.state = true
+	b.state.Store(true)
+
+	// Until initialization finishes, ctx.Done() still aborts the stream, so a
+	// SIGTERM during a stuck INIT handshake can't stall connectWg.Wait().
+	initDone := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			cancel()
+		case <-initDone:
+		}
+	}()
+
 	for {
 		// INIT message to new NF instance
-		context.Sctplb_Self().RanPool.Range(func(key, value any) bool {
+		sctplbCtx.Sctplb_Self().RanPool.Range(func(key, value any) bool {
 			req := gClient.SctplbMessage{}
 			req.VerboseMsg = "Hello From SCTP LB!"
 			req.Msgtype = gClient.MsgType_INIT_MSG
 			req.SctplbId = os.Getenv("HOSTNAME")
-			candidate := value.(*context.Ran)
+			candidate := value.(*sctplbCtx.Ran)
 			if candidate.RanId != nil {
 				req.GnbId = *candidate.RanId
 			} else {
 				logger.AppLog.Infof("ran connection %v is exist without GnbId, so not sending this ran details to NF",
 					candidate.GnbIp)
 			}
-			if err := stream.Send(&req); err != nil {
+			b.sendMu.Lock()
+			err := stream.Send(&req)
+			b.sendMu.Unlock()
+			if err != nil {
 				logger.AppLog.Warnln("can not send:", err)
 			}
 			logger.AppLog.Infoln("send Request message")
 			response, err := stream.Recv()
 			if err != nil {
 				logger.AppLog.Errorln("response from server: error", err)
-				b.state = false
+				b.state.Store(false)
 			} else {
 				logger.AppLog.Infof("init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
-				b.state = true
+				b.state.Store(true)
 			}
 			return true
 		})
 		break
 	}
-	if b.state {
+	close(initDone)
+
+	if b.state.Load() {
+		b.readDone = make(chan struct{})
 		go b.connectionOnState()
 		go b.readFromServer()
 	}
 }
 
 func (b *GrpcServer) readFromServer() {
+	defer close(b.readDone)
 	for {
 		response, err := b.stream.Recv()
 		if err != nil {
@@ -89,11 +118,11 @@ func (b *GrpcServer) readFromServer() {
 				logger.GrpcLog.Infof("init Response from Server %s server: %s", response.AmfId, response.VerboseMsg)
 			} else if response.Msgtype == gClient.MsgType_REDIRECT_MSG {
 				var found bool
-				ctx := context.Sctplb_Self()
+				ctx := sctplbCtx.Sctplb_Self()
 				for _, instance := range ctx.Backends {
 					b1 := instance.(*GrpcServer)
 					if b1.address == response.RedirectId {
-						if !b1.state {
+						if !b1.state.Load() {
 							logger.GrpcLog.Infoln("backend state is not in READY state, so not forwarding redirected Msg")
 						} else {
 							t := gClient.SctplbMessage{}
@@ -102,7 +131,9 @@ func (b *GrpcServer) readFromServer() {
 							t.SctplbId = os.Getenv("HOSTNAME")
 							t.Msg = response.Msg
 							t.GnbId = response.GnbId
+							b1.sendMu.Lock()
 							err := b1.stream.Send(&t)
+							b1.sendMu.Unlock()
 							if err != nil {
 								logger.GrpcLog.Infoln("error forwarding msg")
 							}
@@ -116,19 +147,19 @@ func (b *GrpcServer) readFromServer() {
 					logger.GrpcLog.Infof("dropping redirected message as backend ip [%v] is not exist", response.RedirectId)
 				}
 			} else {
-				var ran *context.Ran
+				var ran *sctplbCtx.Ran
 				// fetch ran connection based on GnbId
 				if response.GnbId == "" {
 					logger.RanLog.Infoln("received null GnbId from backend NF")
 				} else if response.GnbIpAddr != "" {
 					// GnbId may present NGSetupreponse/failure receives from NF
-					ran, _ = context.Sctplb_Self().RanFindByGnbIp(response.GnbIpAddr)
+					ran, _ = sctplbCtx.Sctplb_Self().RanFindByGnbIp(response.GnbIpAddr)
 					if ran != nil && response.GnbId != "" {
 						ran.SetRanId(response.GnbId)
 						logger.RanLog.Infof("received GnbId: %v for GNbIpAddress: %v from NF", response.GnbId, response.GnbIpAddr)
 					}
 				} else if response.GnbId != "" {
-					ran, _ = context.Sctplb_Self().RanFindByGnbId(response.GnbId)
+					ran, _ = sctplbCtx.Sctplb_Self().RanFindByGnbId(response.GnbId)
 				}
 				if ran != nil {
 					_, err := ran.Conn.Write(response.Msg)
@@ -148,7 +179,7 @@ func (b *GrpcServer) connectionOnState() {
 		// continue checking for state change
 		// until one of break states is found
 		for {
-			change := b.conn.WaitForStateChange(ctxt.Background(), b.conn.GetState())
+			change := b.conn.WaitForStateChange(context.Background(), b.conn.GetState())
 			if change && b.conn.GetState() == connectivity.Idle {
 				deleteBackendNF(b)
 				return
@@ -157,7 +188,7 @@ func (b *GrpcServer) connectionOnState() {
 	}()
 }
 
-func (b *GrpcServer) Send(msg []byte, end bool, ran *context.Ran) error {
+func (b *GrpcServer) Send(msg []byte, end bool, ran *sctplbCtx.Ran) error {
 	t := gClient.SctplbMessage{}
 	if end {
 		t.VerboseMsg = "Bye From gNB Message !"
@@ -180,9 +211,59 @@ func (b *GrpcServer) Send(msg []byte, end bool, ran *context.Ran) error {
 		}
 		t.Msg = msg
 	}
+	b.sendMu.Lock()
+	defer b.sendMu.Unlock()
 	return b.stream.Send(&t)
 }
 
 func (b *GrpcServer) State() bool {
-	return b.state
+	return b.state.Load()
+}
+
+// Close drains the backend stream: it half-closes the send side, then waits
+// for readFromServer to finish or ctx to expire, whichever comes first, and
+// only force-closes the connection if the drain did not finish in time.
+func (b *GrpcServer) Close(ctx context.Context) {
+	b.state.Store(false)
+
+	// sendMu may be held by a Send blocked on gRPC flow control, so acquiring
+	// it runs in its own goroutine: ctx bounds how long Close waits for it,
+	// not how long the lock itself takes.
+	sendClosed := make(chan struct{})
+	go func() {
+		b.sendMu.Lock()
+		defer b.sendMu.Unlock()
+		if b.stream != nil {
+			if err := b.stream.CloseSend(); err != nil {
+				logger.GrpcLog.Warnf("close stream error: %+v", err)
+			}
+		}
+		close(sendClosed)
+	}()
+
+	select {
+	case <-sendClosed:
+	case <-ctx.Done():
+		logger.GrpcLog.Warnf("timed out closing send side of stream from %s", b.address)
+	}
+
+	if b.readDone != nil {
+		select {
+		case <-b.readDone:
+		case <-ctx.Done():
+			logger.GrpcLog.Warnf("timed out draining stream from %s, forcing close", b.address)
+		}
+	}
+
+	// Cancel the stream's own context now that the graceful drain finished or
+	// timed out, then tear down the connection.
+	if b.streamCancel != nil {
+		b.streamCancel()
+	}
+
+	if b.conn != nil {
+		if err := b.conn.Close(); err != nil {
+			logger.GrpcLog.Warnf("close connection error: %+v", err)
+		}
+	}
 }

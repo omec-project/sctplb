@@ -80,8 +80,8 @@ func Test_RoundRobin(t *testing.T) {
 					t.Errorf("RoundRobin() address mismatch. got = %q, want = %q", got.address, tt.want.address)
 				}
 
-				if got.state != tt.want.state {
-					t.Errorf("RoundRobin() state mismatch. got = %v, want = %v", got.state, tt.want.state)
+				if got.state.Load() != tt.want.state.Load() {
+					t.Errorf("RoundRobin() state mismatch. got = %v, want = %v", got.state.Load(), tt.want.state.Load())
 				}
 
 				// For conn, gc, stream - check if they're both nil or both non-nil

@@ -7,13 +7,20 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
+	"time"
 
 	"github.com/omec-project/sctplb/backend"
 	"github.com/omec-project/sctplb/config"
 	"github.com/omec-project/sctplb/logger"
 	"github.com/urfave/cli/v3"
 )
+
+// shutdownTimeout bounds how long sctplb waits, after receiving SIGTERM, for
+// in-flight gNB and backend NF connections to close before exiting anyway.
+const shutdownTimeout = 10 * time.Second
 
 func main() {
 	app := &cli.Command{}
@@ -49,6 +56,9 @@ func action(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 
+	shutdownCtx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, os.Interrupt)
+	defer stop()
+
 	// Read messages from SCTP Sockets and push it on channel
 	logger.AppLog.Infof("sctp port: %d grpc port: %d", sctplbConfig.Configuration.NgapPort, sctplbConfig.Configuration.SctpGrpcPort)
 	backend.ServiceRun(sctplbConfig.Configuration.NgapIpList, sctplbConfig.Configuration.NgapPort)
@@ -56,7 +66,13 @@ func action(ctx context.Context, c *cli.Command) error {
 	b := backend.BackendSvc{
 		Cfg: sctplbConfig,
 	}
-	b.DispatchAddServer()
+	b.DispatchAddServer(shutdownCtx)
+
+	logger.AppLog.Infoln("received shutdown signal, shutting down sctplb")
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	backend.Shutdown(timeoutCtx)
+	logger.AppLog.Infoln("sctplb shutdown complete")
 
 	return nil
 }

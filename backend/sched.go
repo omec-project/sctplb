@@ -9,6 +9,7 @@ import (
 	stdctx "context"
 	"encoding/binary"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/ishidawataru/sctp"
@@ -49,38 +50,54 @@ const discoveryInterval = 2 * time.Second
 // backend; both are variables so that tests can replace them.
 var (
 	lookupIPAddr = net.DefaultResolver.LookupIPAddr
-	startBackend = func(backend context.NF, port int) { go backend.ConnectToServer(port) }
+	startBackend = func(ctx stdctx.Context, backend context.NF, port int) {
+		connectWg.Go(func() {
+			backend.ConnectToServer(ctx, port)
+		})
+	}
 )
+
+// connectWg tracks in-flight ConnectToServer calls, so closeBackends can wait
+// for connection startup to finish (or be aborted by ctx) before closing
+// backends.
+var connectWg sync.WaitGroup
 
 // DispatchAddServer keeps the backend pool in step with the configured
 // services: every discoveryInterval, each service's name is resolved once and
 // a backend is added for every IPv4 address that is not one yet. There can be
-// more than one message outstanding towards the same backend.
-func (b BackendSvc) DispatchAddServer() {
+// more than one message outstanding towards the same backend. It returns once
+// ctx is done.
+func (b BackendSvc) DispatchAddServer(ctx stdctx.Context) {
 	for {
-		b.discoverAll()
-		time.Sleep(discoveryInterval)
+		b.discoverAll(ctx)
+		select {
+		case <-ctx.Done():
+			logger.DiscoveryLog.Infoln("stopping backend discovery")
+			return
+		case <-time.After(discoveryInterval):
+		}
 	}
 }
 
 // discoverAll is one discovery pass: each configured service is resolved once,
 // in order, whether its lookup succeeds or fails.
-func (b BackendSvc) discoverAll() {
+func (b BackendSvc) discoverAll(ctx stdctx.Context) {
 	for _, svc := range b.Cfg.Configuration.Services {
-		b.discoverService(svc.Uri)
+		b.discoverService(ctx, svc.Uri)
 	}
 }
 
 // discoverService resolves one service once. A failed lookup is logged, and the
-// next pass tries again.
-func (b BackendSvc) discoverService(uri string) {
+// next pass tries again. ctx bounds the DNS lookup so shutdown is not delayed
+// by a slow resolver.
+func (b BackendSvc) discoverService(ctx stdctx.Context, uri string) {
 	logger.DiscoveryLog.Debugln("discover service", uri)
-	ips, err := lookupIPAddr(stdctx.Background(), uri)
+	ips, err := lookupIPAddr(ctx, uri)
 	if err != nil {
 		logger.DiscoveryLog.Warnf("discover service %s error %+v", uri, err)
 		return
 	}
-	ctx := context.Sctplb_Self()
+	sctplbCtx := context.Sctplb_Self()
 	for _, ipAddr := range ips {
 		ipv4 := ipAddr.IP.To4()
 		if ipv4 == nil {
@@ -89,25 +106,25 @@ func (b BackendSvc) discoverService(uri string) {
 		address := ipv4.String()
 		logger.DiscoveryLog.Debugf("discover service %s, ip %s", uri, address)
 
-		ctx.Lock()
-		if hasBackend(ctx, address) {
-			ctx.Unlock()
+		sctplbCtx.Lock()
+		if hasBackend(sctplbCtx, address) {
+			sctplbCtx.Unlock()
 			continue
 		}
-		var backend context.NF
+		var backendNF context.NF
 		switch b.Cfg.Configuration.Type {
 		case "grpc":
-			backend = &GrpcServer{address: address}
+			backendNF = &GrpcServer{address: address}
 		default:
-			ctx.Unlock()
+			sctplbCtx.Unlock()
 			logger.DiscoveryLog.Warnln("unsupported backend type:", b.Cfg.Configuration.Type)
 			return
 		}
-		ctx.AddNF(backend)
-		ctx.Unlock()
+		sctplbCtx.AddNF(backendNF)
+		sctplbCtx.Unlock()
 
 		logger.DiscoveryLog.Infoln("new server found IPv4:", address)
-		startBackend(backend, b.Cfg.Configuration.SctpGrpcPort)
+		startBackend(ctx, backendNF, b.Cfg.Configuration.SctpGrpcPort)
 	}
 }
 
@@ -132,6 +149,39 @@ func deleteBackendNF(b context.NF) {
 	}
 }
 
+// closeBackends closes every connected backend NF. Used during shutdown. ctx
+// bounds how long each backend waits for its stream to drain. It first waits
+// for any in-flight ConnectToServer calls, so a backend added just before
+// shutdown isn't closed while its connection is still being established.
+func closeBackends(ctx stdctx.Context) {
+	connected := make(chan struct{})
+	go func() {
+		connectWg.Wait()
+		close(connected)
+	}()
+	select {
+	case <-connected:
+	case <-ctx.Done():
+		logger.DiscoveryLog.Warnln("timed out waiting for backend connections to finish starting")
+	}
+
+	sctplbCtx := context.Sctplb_Self()
+	sctplbCtx.Lock()
+	backends := make([]context.NF, len(sctplbCtx.Backends))
+	copy(backends, sctplbCtx.Backends)
+	sctplbCtx.Unlock()
+
+	// Close every backend concurrently so one slow drain doesn't eat into the
+	// shutdown window of the others.
+	var closeWg sync.WaitGroup
+	for _, b := range backends {
+		closeWg.Go(func() {
+			b.Close(ctx)
+		})
+	}
+	closeWg.Wait()
+}
+
 func dispatchMessage(conn *sctp.SCTPConn, msg []byte) {
 	// add this message for one of the client
 	// select server who can handle this message.. round robin
@@ -151,18 +201,23 @@ func dispatchMessage(conn *sctp.SCTPConn, msg []byte) {
 
 	ctx := context.Sctplb_Self()
 	ctx.Lock()
-	defer ctx.Unlock()
 	ran, _ := ctx.RanFindByConn(conn)
 	if len(msg) == 0 {
 		logger.SctpLog.Infof("send Gnb connection [%v] close message to all AMF Instances", peer.address)
-		if ctx.Backends != nil && ctx.NFLength() > 0 {
-			var i int
-			for ; i < ctx.NFLength(); i++ {
-				backend := ctx.Backends[i]
-				if backend.State() {
-					if err := backend.Send(msg, true, ran); err != nil {
-						logger.SctpLog.Errorln("can not send", err)
-					}
+		// Snapshot the ready backends and send outside the lock: a gRPC send can
+		// block on flow control, which would otherwise stall shutdown.
+		backends := make([]Backend, 0, ctx.NFLength())
+		for _, b := range ctx.Backends {
+			if b.State() {
+				backends = append(backends, b)
+			}
+		}
+		ctx.Unlock()
+
+		if len(backends) > 0 {
+			for _, backend := range backends {
+				if err := backend.Send(msg, true, ran); err != nil {
+					logger.SctpLog.Errorln("can not send", err)
 				}
 			}
 		} else {
@@ -175,18 +230,24 @@ func dispatchMessage(conn *sctp.SCTPConn, msg []byte) {
 		ran = context.Sctplb_Self().NewRan(conn)
 	}
 	if ctx.NFLength() == 0 {
+		ctx.Unlock()
 		logger.AppLog.Errorln("no backend available")
 		return
 	}
-	var i int
-	for ; i < ctx.NFLength(); i++ {
+	var backend Backend
+	for i := 0; i < ctx.NFLength(); i++ {
 		// Select the backend NF based on RoundRobin Algorithm
-		backend := RoundRobin()
-		if backend.State() {
-			if err := backend.Send(msg, false, ran); err != nil {
-				logger.SctpLog.Errorln("can not send:", err)
-			}
+		candidate := RoundRobin()
+		if candidate.State() {
+			backend = candidate
 			break
+		}
+	}
+	ctx.Unlock()
+
+	if backend != nil {
+		if err := backend.Send(msg, false, ran); err != nil {
+			logger.SctpLog.Errorln("can not send:", err)
 		}
 	}
 }
