@@ -184,14 +184,14 @@ func (b *GrpcServer) connectionOnState() {
 		// continue checking for state change
 		// until one of break states is found
 		for {
-			change := b.conn.WaitForStateChange(context.Background(), b.conn.GetState())
 			state := b.conn.GetState()
-			// Shutdown is terminal (e.g. after Close), so it must end this loop too:
-			// otherwise the next WaitForStateChange call never returns.
-			if change && (state == connectivity.Idle || state == connectivity.Shutdown) {
+			// Idle/Shutdown are terminal: sample them before waiting, since
+			// WaitForStateChange(ctx, Shutdown) never returns (Shutdown can't change).
+			if state == connectivity.Idle || state == connectivity.Shutdown {
 				deleteBackendNF(b)
 				return
 			}
+			b.conn.WaitForStateChange(context.Background(), state)
 		}
 	}()
 }
