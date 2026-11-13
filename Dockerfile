@@ -33,9 +33,15 @@ LABEL org.opencontainers.image.source="${VCS_URL}" \
 
 ARG DEBUG_TOOLS
 
+# Install debug tools only when explicitly requested.
 RUN if [ "$DEBUG_TOOLS" = "true" ]; then \
         apk add --no-cache vim nano strace net-tools curl netcat-openbsd bind-tools; \
     fi
 
+# Run as an unprivileged user
+RUN addgroup -S -g 1000 aether && adduser -S -u 1000 -G aether aether
+
 # Copy executable
-COPY --from=builder /go/src/sctplb/bin/* /usr/local/bin/.
+COPY --chmod=755 --from=builder /go/src/sctplb/bin/* /usr/local/bin/.
+
+USER 1000:1000
