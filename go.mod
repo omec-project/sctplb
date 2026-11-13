@@ -7,7 +7,7 @@ require (
 	github.com/omec-project/ngap/v2 v2.1.10
 	github.com/urfave/cli/v3 v3.14.0
 	go.uber.org/zap v1.28.0
-	go.yaml.in/yaml/v4 v4.0.0-rc.9
+	go.yaml.in/yaml/v4 v4.0.0
 	google.golang.org/grpc v1.86.0-dev
 	google.golang.org/protobuf v1.36.12
 )
