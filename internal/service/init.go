@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package main
+package service
 
 import (
 	"context"
@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/omec-project/sctplb/backend"
-	"github.com/omec-project/sctplb/config"
-	"github.com/omec-project/sctplb/logger"
+	"github.com/omec-project/sctplb/internal/backend"
+	"github.com/omec-project/sctplb/internal/factory"
+	"github.com/omec-project/sctplb/internal/logger"
 	"github.com/urfave/cli/v3"
 )
 
@@ -22,57 +22,61 @@ import (
 // in-flight gNB and backend NF connections to close before exiting anyway.
 const shutdownTimeout = 10 * time.Second
 
-func main() {
-	app := &cli.Command{}
-	app.Name = "sctplb"
-	logger.AppLog.Infoln(app.Name)
-	app.Usage = "SCTP Load Balancer"
-	app.UsageText = "sctplb -cfg <sctplb_config_file.conf>"
-	app.Flags = []cli.Flag{
-		&cli.StringFlag{
-			Name:     "cfg",
-			Usage:    "sctplb config file",
-			Required: true,
-		},
-	}
-	app.Action = action
-	if err := app.Run(context.Background(), os.Args); err != nil {
-		logger.AppLog.Fatalf("SCTPLB run error: %v", err)
-	}
+type SCTPLB struct {
+	cfg factory.Config
 }
 
-func action(ctx context.Context, c *cli.Command) error {
+var sctplbCli = []cli.Flag{
+	&cli.StringFlag{
+		Name:     "cfg",
+		Usage:    "sctplb config file",
+		Required: true,
+	},
+}
+
+func (*SCTPLB) GetCliCmd() (flags []cli.Flag) {
+	return sctplbCli
+}
+
+func (s *SCTPLB) Initialize(_ context.Context, c *cli.Command) error {
 	logger.AppLog.Infoln("sctp-lb started")
-	cfg := c.String("cfg")
-	absPath, err := filepath.Abs(cfg)
+	absPath, err := filepath.Abs(c.String("cfg"))
 	if err != nil {
 		logger.CfgLog.Errorln(err)
 		return err
 	}
 
-	sctplbConfig, err := config.InitConfigFactory(absPath)
+	s.cfg, err = factory.InitConfigFactory(absPath)
 	if err != nil {
 		logger.AppLog.Errorf("failed to initialize config: %v", err)
 		return err
 	}
+	return nil
+}
 
+// Start runs the load balancer until it gets SIGTERM or SIGINT, then terminates it.
+func (s *SCTPLB) Start(ctx context.Context) error {
 	shutdownCtx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, os.Interrupt)
 	defer stop()
 
 	// Read messages from SCTP Sockets and push it on channel
-	logger.AppLog.Infof("sctp port: %d grpc port: %d", sctplbConfig.Configuration.NgapPort, sctplbConfig.Configuration.SctpGrpcPort)
-	backend.ServiceRun(sctplbConfig.Configuration.NgapIpList, sctplbConfig.Configuration.NgapPort)
+	logger.AppLog.Infof("sctp port: %d grpc port: %d", s.cfg.Configuration.NgapPort, s.cfg.Configuration.SctpGrpcPort)
+	backend.ServiceRun(s.cfg.Configuration.NgapIpList, s.cfg.Configuration.NgapPort)
 
 	b := backend.BackendSvc{
-		Cfg: sctplbConfig,
+		Cfg: s.cfg,
 	}
 	b.DispatchAddServer(shutdownCtx)
 
 	logger.AppLog.Infoln("received shutdown signal, shutting down sctplb")
+	s.Terminate()
+	return nil
+}
+
+// Terminate closes the SCTP and backend connections, waiting at most shutdownTimeout.
+func (*SCTPLB) Terminate() {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	backend.Shutdown(timeoutCtx)
 	logger.AppLog.Infoln("sctplb shutdown complete")
-
-	return nil
 }

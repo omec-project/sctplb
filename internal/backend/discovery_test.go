@@ -10,8 +10,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/omec-project/sctplb/config"
-	"github.com/omec-project/sctplb/context"
+	"github.com/omec-project/sctplb/internal/context"
+	"github.com/omec-project/sctplb/internal/factory"
 )
 
 // fakeDiscovery replaces the resolver and the backend start for one test and
@@ -43,10 +43,10 @@ func useFakeDiscovery(t *testing.T, f *fakeDiscovery) {
 }
 
 func grpcService(backendType string, uris ...string) BackendSvc {
-	var cfg config.Config
-	cfg.Configuration = &config.Configuration{Type: backendType, SctpGrpcPort: 9000}
+	var cfg factory.Config
+	cfg.Configuration = &factory.Configuration{Type: backendType, SctpGrpcPort: 9000}
 	for _, uri := range uris {
-		cfg.Configuration.Services = append(cfg.Configuration.Services, config.Service{Uri: uri})
+		cfg.Configuration.Services = append(cfg.Configuration.Services, factory.Service{Uri: uri})
 	}
 	return BackendSvc{Cfg: cfg}
 }
