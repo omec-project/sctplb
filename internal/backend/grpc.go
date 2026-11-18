@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"os"
 
-	sctplbCtx "github.com/omec-project/sctplb/context"
-	"github.com/omec-project/sctplb/logger"
-	gClient "github.com/omec-project/sctplb/sdcoreAmfServer"
+	sctplbCtx "github.com/omec-project/sctplb/internal/context"
+	"github.com/omec-project/sctplb/internal/logger"
+	gClient "github.com/omec-project/sctplb/internal/proto/sdcoreAmfServer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"

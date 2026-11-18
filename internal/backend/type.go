@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 
 	"github.com/ishidawataru/sctp"
-	"github.com/omec-project/sctplb/config"
-	sctplbCtx "github.com/omec-project/sctplb/context"
-	gClient "github.com/omec-project/sctplb/sdcoreAmfServer"
+	sctplbCtx "github.com/omec-project/sctplb/internal/context"
+	"github.com/omec-project/sctplb/internal/factory"
+	gClient "github.com/omec-project/sctplb/internal/proto/sdcoreAmfServer"
 	"google.golang.org/grpc"
 )
 
@@ -22,7 +22,7 @@ type SctpConnections struct {
 }
 
 type BackendSvc struct {
-	Cfg config.Config
+	Cfg factory.Config
 }
 
 // SD-CORE AMF: use grpc protocol to receive ngap/nas message

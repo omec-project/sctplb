@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/omec-project/sctplb/logger"
+	"github.com/omec-project/sctplb/internal/logger"
 	"go.uber.org/zap"
 )
 

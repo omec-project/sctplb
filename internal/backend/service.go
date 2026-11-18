@@ -16,7 +16,7 @@ import (
 
 	"github.com/ishidawataru/sctp"
 	"github.com/omec-project/ngap/v2"
-	"github.com/omec-project/sctplb/logger"
+	"github.com/omec-project/sctplb/internal/logger"
 )
 
 type SCTPHandler struct {

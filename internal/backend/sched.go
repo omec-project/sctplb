@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/ishidawataru/sctp"
-	"github.com/omec-project/sctplb/context"
-	"github.com/omec-project/sctplb/logger"
+	"github.com/omec-project/sctplb/internal/context"
+	"github.com/omec-project/sctplb/internal/logger"
 )
 
 var next int

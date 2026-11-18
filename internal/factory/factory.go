@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package config
+package factory
 
 import (
 	"errors"
 	"os"
 
-	"github.com/omec-project/sctplb/logger"
+	"github.com/omec-project/sctplb/internal/logger"
 	"go.yaml.in/yaml/v4"
 )
 

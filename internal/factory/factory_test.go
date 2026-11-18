@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package config
+package factory
 
 import (
 	"reflect"
@@ -30,7 +30,7 @@ func Test_InitConfigFactory(t *testing.T) {
 	}
 
 	t.Run("", func(t *testing.T) {
-		cfg, err := InitConfigFactory("./sctplb.yaml")
+		cfg, err := InitConfigFactory("../../configs/sctplb.yaml")
 		if err != nil {
 			t.Fatalf("InitConfigFactory failed: %v", err)
 		}

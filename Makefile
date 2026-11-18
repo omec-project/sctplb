@@ -66,7 +66,7 @@ all: build ## Build binary (alias for compatibility)
 
 $(BIN_DIR)/$(BINARY_NAME): $(GO_FILES) | bin-dir
 	@echo "Building $(BINARY_NAME)..."
-	@CGO_ENABLED=0 go build -o $@ .
+	@CGO_ENABLED=0 go build -o $@ ./cmd
 
 bin-dir: ## Create binary directory
 	@mkdir -p $(BIN_DIR)
